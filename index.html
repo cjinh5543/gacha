@@ -515,6 +515,7 @@ function pull(){
     card.innerHTML=`<div class="tier-badge">${f.tier}</div>${photoTag(f,'photo')}<div class="name">${f.name}</div><div class="desc">${f.desc}</div>`;
     stage.appendChild(card);
     sparkle(t.color, level, maxLevel);
+    runCardEffect(f, {stage, card, color:t.color, level, name:f.name});
   },1950);
   setTimeout(()=>{trex.remove();poop.remove();},2450);
 
@@ -626,6 +627,38 @@ function sparkleXY(cx, cy, color, level=1){
   }
 }
 
+/* ================= 카드 전용 연출 =================
+   새 연출은 CARD_EFFECTS에 "이름(effect)": function(ctx){...} 형태로 추가하세요.
+   ctx = { stage, card, color, level, name }
+   관리자 페이지에서 카드의 "전용 연출" 칸에 그 이름을 적으면 이 연출이 발동돼요.
+   (비워두면 등급 기본 연출만 나옵니다) */
+const CARD_EFFECTS = {
+  // 예시: 황금 왕관이 솟고 금빛 폭죽
+  golden_crown(ctx){
+    const crown=document.createElement('div');
+    crown.textContent='👑';
+    crown.style.cssText='position:absolute;left:50%;top:4px;transform:translateX(-50%);font-size:42px;z-index:9;pointer-events:none;';
+    ctx.stage.appendChild(crown);
+    crown.animate([
+      {transform:'translateX(-50%) translateY(30px) scale(0)',opacity:0},
+      {transform:'translateX(-50%) translateY(-6px) scale(1.2)',opacity:1},
+      {transform:'translateX(-50%) translateY(0) scale(1)',opacity:1}],
+      {duration:600,easing:'cubic-bezier(.2,.9,.3,1.4)',fill:'forwards'});
+    for(let i=0;i<3;i++) setTimeout(()=>sparkleAt(ctx.card,'#ffd54a',4),i*180);
+    setTimeout(()=>crown.remove(),2200);
+  },
+  // 예시: 무지개 폭죽
+  rainbow_burst(ctx){
+    const colors=['#ff5b5b','#ffb03a','#ffd54a','#5bd97a','#4aa6ff','#a25bff'];
+    colors.forEach((c,i)=>setTimeout(()=>sparkleAt(ctx.card,c,4),i*90));
+  }
+};
+function runCardEffect(f, ctx){
+  if(f && f.effect && CARD_EFFECTS[f.effect]){
+    try{ CARD_EFFECTS[f.effect](ctx); }catch(e){ console.error('연출 오류', e); }
+  }
+}
+
 /* ================= 연속 뽑기 (5연차 / 10연차) ================= */
 function setPullEnabled(on){
   [document.getElementById('pullBtn'),document.getElementById('pull5'),document.getElementById('pull10')]
@@ -710,6 +743,7 @@ function animateMulti(n, results){
           {duration:340,easing:'cubic-bezier(.2,.9,.3,1.3)',fill:'both'});
         s.slot.appendChild(card);
         if(s.level>=maxLevel-1) sparkleAt(s.slot, s.t.color, s.level);
+        runCardEffect(s.f, {stage:s.slot, card, color:s.t.color, level:s.level, name:s.f.name});
       },180);
     }, lineupDone + i*POP);
   });
@@ -802,7 +836,7 @@ async function loadGameData(){
   TOTAL_RATE = Object.values(TIERS).reduce((s,t)=>s+t.rate,0);
   HIGH_TIERS = tiers.slice(0,3).map(t=>t.name); // 위쪽 3개 = 으이~ 이상
 
-  FRIENDS = cards.map(c=>({ name:c.name, photo:c.photo, desc:c.description, tier:c.tier }));
+  FRIENDS = cards.map(c=>({ name:c.name, photo:c.photo, desc:c.description, tier:c.tier, effect:c.effect||null }));
 }
 
 /* ================= 시작 ================= */
