@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>얼간이 대전쟁</title>
+<style>
+  @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+  :root{--bg:#12060a;--panel:#241016;--gold:#ffd54a;--red:#ff5b5b;--purple:#a25bff;--blue:#4aa6ff;--gray:#a08b8b;--dark:#4a2f37;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard',sans-serif;background:radial-gradient(circle at 50% 0%,#3a1420 0%,var(--bg) 60%);
+    color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px;}
+  h1{font-size:clamp(26px,7vw,40px);font-weight:900;letter-spacing:-1px;text-align:center;margin-top:12px;
+    background:linear-gradient(90deg,var(--gold),var(--red));-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 12px rgba(255,91,91,.4));}
+  .sub{color:var(--gray);font-size:14px;margin:8px 0 22px;text-align:center;}
+  a.home{position:fixed;top:16px;left:16px;font-size:13px;color:var(--gray);text-decoration:none;
+    background:rgba(0,0,0,.3);border:1px solid var(--dark);padding:8px 14px;border-radius:999px;z-index:60;}
+
+  /* 로그인 */
+  .auth{width:min(320px,92vw);background:var(--panel);border:1px solid var(--dark);border-radius:16px;padding:24px;margin-top:30px;}
+  .auth h3{font-size:14px;color:var(--gray);margin-bottom:12px;}
+  .auth input{width:100%;padding:11px;margin-bottom:9px;border-radius:9px;border:1px solid var(--dark);background:#160a0e;color:#fff;font-size:14px;}
+  .auth button{width:100%;padding:12px;border:none;border-radius:9px;font-weight:800;font-size:15px;cursor:pointer;
+    background:linear-gradient(90deg,var(--gold),#ffb03a);color:#0d0a1f;}
+  .auth .err{color:var(--red);font-size:12px;min-height:16px;margin-bottom:6px;}
+  .auth .note{font-size:11px;color:#8a6b72;margin-top:10px;line-height:1.5;}
+
+  /* 배치 화면 */
+  .board{display:none;width:min(560px,94vw);}
+  .board.on{display:block;}
+  .me-bar{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--dark);
+    border-radius:12px;padding:12px 16px;margin-bottom:18px;}
+  .me-bar .nm{font-weight:900;font-size:17px;}
+  .me-bar .lv{font-size:12px;font-weight:800;color:#0d0a1f;background:var(--gold);padding:2px 10px;border-radius:999px;}
+  .me-bar .ff{margin-left:auto;font-size:13px;font-weight:800;color:var(--gold);}
+  .me-bar .rank{margin-left:auto;font-size:13px;font-weight:800;color:var(--rc,var(--gold));}
+  .me-bar .lo{background:transparent;border:1px solid var(--dark);color:var(--gray);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;}
+
+  h2.section{font-size:16px;margin-bottom:4px;}
+  .hint{font-size:12px;color:var(--gray);margin-bottom:14px;}
+  .deck{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;margin-bottom:8px;}
+  .slot{aspect-ratio:1;border-radius:12px;border:1.5px dashed var(--dark);background:rgba(255,255,255,.02);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:30px;}
+  .slot:hover{border-color:var(--red);}
+  .slot.filled{border-style:solid;border-color:var(--sc,#666);box-shadow:0 0 14px -4px var(--sc);}
+  .slot img{width:70%;height:70%;border-radius:50%;object-fit:cover;}
+  .slot .nm{font-size:10px;font-weight:700;margin-top:3px;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .slot .pw{position:absolute;top:3px;right:5px;font-size:10px;font-weight:800;color:var(--red);}
+  .slot .plus{font-size:24px;color:var(--gray);}
+  .power{text-align:center;font-size:15px;margin:14px 0;}
+  .power b{color:var(--red);font-size:22px;}
+  .save-btn{display:block;margin:0 auto;padding:14px 40px;border:none;border-radius:999px;font-weight:800;font-size:16px;cursor:pointer;
+    background:linear-gradient(90deg,var(--red),#ff8a3a);color:#fff;box-shadow:0 6px 20px rgba(255,91,91,.4);}
+
+  /* 카드 선택 모달 */
+  .overlay{position:fixed;inset:0;background:rgba(5,0,3,.82);display:none;align-items:flex-start;justify-content:center;
+    padding:40px 16px;overflow-y:auto;z-index:90;}
+  .overlay.on{display:flex;}
+  .modal{width:min(680px,94vw);background:var(--panel);border:1px solid var(--dark);border-radius:18px;padding:22px;}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .modal-head h3{font-size:18px;}
+  .modal-head button{background:transparent;border:1px solid var(--dark);color:#cfd4e0;border-radius:8px;width:32px;height:32px;cursor:pointer;}
+  .pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px;}
+  .pcard{border-radius:14px;padding:12px 8px;text-align:center;background:rgba(255,255,255,.03);border:1.5px solid var(--tc,#555);cursor:pointer;}
+  .pcard .ph{width:56px;height:56px;border-radius:50%;margin:0 auto 8px;object-fit:cover;background:#222;
+    display:flex;align-items:center;justify-content:center;font-size:28px;border:2px solid var(--tc,#444);}
+  .pcard .nm{font-size:13px;font-weight:800;}
+  .pcard .tr{font-size:10px;font-weight:700;color:var(--tc);margin-top:2px;}
+  .pcard .pw{font-size:11px;color:var(--red);margin-top:4px;font-weight:800;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .3s;z-index:120;}
+  .toast.on{opacity:1;}
+  /* 상대 목록 */
+  .opp{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--dark);border-radius:12px;
+    padding:12px 16px;margin-bottom:8px;}
+  .opp .onm{font-weight:800;}
+  .opp .olv{font-size:11px;color:var(--gray);}
+  .opp .opw{margin-left:auto;font-size:13px;color:var(--red);font-weight:800;}
+  .opp button{padding:9px 16px;border:none;border-radius:9px;font-weight:800;font-size:13px;cursor:pointer;
+    background:linear-gradient(90deg,var(--red),#ff8a3a);color:#fff;}
+  .opp button:disabled{opacity:.4;cursor:default;}
+  .opp .btns{display:flex;flex-direction:column;gap:5px;}
+  .opp .b-practice{background:#2a2e42;color:#cfd4e0;}
+  .opp .b-ranked{background:linear-gradient(90deg,var(--red),#ff8a3a);color:#fff;}
+  .rleft{font-size:12px;font-weight:700;color:var(--gray);}
+  .rleft b{color:var(--gold);}
+  .war-loading{text-align:center;color:var(--gray);font-size:14px;padding:20px 0;}
+  .opp-empty{font-size:13px;color:var(--gray);padding:10px 0;}
+  /* 전투 결과 */
+  .war-vs{display:flex;align-items:center;justify-content:space-around;margin-bottom:16px;text-align:center;}
+  .war-vs .side .nm{font-weight:900;font-size:16px;}
+  .war-vs .side .pw{font-size:13px;color:var(--red);font-weight:800;margin-top:2px;}
+  .war-vs .mid{font-size:22px;font-weight:900;color:var(--gray);}
+  .war-result{text-align:center;font-size:26px;font-weight:900;margin:10px 0;}
+  .war-result.win{color:var(--gold);}
+  .war-result.lose{color:var(--gray);}
+  .war-story{font-size:14px;line-height:1.7;color:#e6dcdc;background:rgba(0,0,0,.25);border-radius:12px;padding:16px;margin:14px 0;white-space:pre-wrap;}
+  .war-reward{text-align:center;font-size:15px;font-weight:800;color:var(--gold);}
+</style>
+</head>
+<body>
+
+<a class="home" href="index.html">← 뽑기로</a>
+<h1>⚔️ 얼간이 대전쟁 ⚔️</h1>
+<p class="sub">뽑은 얼간이들로 부대를 꾸려 전쟁에 나서세요</p>
+
+<!-- 로그인 -->
+<div class="auth" id="auth">
+  <h3>로그인 (뽑기 사이트와 같은 계정)</h3>
+  <div class="err" id="authErr"></div>
+  <input id="wid" placeholder="아이디" autocomplete="off">
+  <input id="wpw" type="password" placeholder="비밀번호" autocomplete="off" onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()">로그인</button>
+  <div class="note">계정이 없으면 먼저 뽑기 사이트에서 가입하세요. 여기선 그 계정으로 로그인만 해요.</div>
+</div>
+
+<!-- 배치 화면 -->
+<div class="board" id="board">
+  <div class="me-bar">
+    <span class="nm" id="meNick">이름</span>
+    <span class="lv" id="meLv">Lv.1</span>
+    <span class="rank" id="meRank">🔰 1500</span>
+    <button class="lo" onclick="logout()">로그아웃</button>
+  </div>
+
+  <h2 class="section">🪖 내 부대 배치</h2>
+  <div class="hint" id="deckHint">레벨이 오를수록 배치할 수 있는 칸이 늘어나요. 칸을 눌러 얼간이를 배치하세요.</div>
+  <div class="deck" id="deckGrid"></div>
+  <div class="power">총 전투력 <b id="deckPower">0</b></div>
+  <button class="save-btn" onclick="saveDeck()">부대 저장</button>
+
+  <!-- 전쟁: 상대 목록 -->
+  <h2 class="section" style="margin-top:34px;">🗺️ 전쟁 상대 <span id="rankedLeft" class="rleft"></span></h2>
+  <div class="hint">연습전은 무제한, 경쟁전은 하루 3번만 가능해요. 경쟁전은 서로의 랭크 점수가 변동돼요.</div>
+  <div id="oppList"><div class="opp-empty">불러오는 중...</div></div>
+</div>
+
+<!-- 전투 결과 모달 -->
+<div class="overlay" id="warOverlay" onclick="if(event.target===this)closeWar()">
+  <div class="modal">
+    <div class="modal-head"><h3 id="warTitle">전쟁 결과</h3><button onclick="closeWar()">×</button></div>
+    <div id="warBody"></div>
+  </div>
+</div>
+
+<!-- 카드 선택 모달 -->
+<div class="overlay" id="pickOverlay" onclick="if(event.target===this)closePick()">
+  <div class="modal">
+    <div class="modal-head"><h3>부대에 배치할 얼간이</h3><button onclick="closePick()">×</button></div>
+    <p style="font-size:12px;color:var(--gray);margin-bottom:12px;">보유한 얼간이만 배치할 수 있어요. 같은 얼간이를 여러 칸에 둬도 돼요.</p>
+    <div class="pick-grid" id="pickGrid"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL="https://syxodvibawtrdulpwwmp.supabase.co";
+const SUPABASE_KEY="sb_publishable_vEcD6gUy63cO8jTEqCfYRw_T90dB4_g";
+const STORY_FN=`${SUPABASE_URL}/functions/v1/war-story`;   // Gemini 스토리 함수
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const PULLS_PER_LEVEL=100;
+const TIER_POWER=[10,20,35,60,100];   // 노예~킹왕짱 전투력 (낮은→높은 등급)
+
+// 랭크 포인트 → 티어
+const RANK_TIERS=[
+  {min:2200, name:'전설', color:'#ffd54a', icon:'👑'},
+  {min:2000, name:'다이아', color:'#7fd8ff', icon:'💎'},
+  {min:1800, name:'플래티넘', color:'#4aa6ff', icon:'🛡️'},
+  {min:1600, name:'골드', color:'#ffb03a', icon:'🥇'},
+  {min:1400, name:'실버', color:'#c0c6d4', icon:'🥈'},
+  {min:1200, name:'브론즈', color:'#c68a5b', icon:'🥉'},
+  {min:0,    name:'언랭', color:'#8b93a7', icon:'🔰'},
+];
+function rankTierOf(rp){ return RANK_TIERS.find(t=>rp>=t.min) || RANK_TIERS[RANK_TIERS.length-1]; }
+
+let TIERS={}, CARDS=[];
+let me=null, token=null, currentUser=null;
+let deck=[];      // 배치된 카드 이름 배열
+let dex={};
+
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),1800); }
+function err(m){ document.getElementById('authErr').textContent=m||''; }
+
+/* 등급 → 전투력 */
+function tierPower(tierName){
+  const keys=Object.keys(TIERS), idx=keys.indexOf(tierName);
+  const level=(keys.length-1)-(idx<0?0:idx);
+  return TIER_POWER[Math.min(level,TIER_POWER.length-1)];
+}
+function myLevel(){ return Math.floor((me.pulls||0)/PULLS_PER_LEVEL)+1; }
+function deckSlots(){ return myLevel(); }   // 레벨 = 배치 칸 수
+function photoTag(f,cls){
+  return f.photo.startsWith('http') ? `<img class="${cls}" src="${f.photo}" alt="">` : `<div class="${cls}">${f.photo}</div>`;
+}
+
+/* ===== 데이터 로드 ===== */
+async function loadCards(){
+  const [{data:tiers},{data:cards}]=await Promise.all([
+    sb.from('tiers').select('*').order('sort_order'),
+    sb.from('cards').select('*')
+  ]);
+  TIERS={}; (tiers||[]).forEach(t=>TIERS[t.name]={color:t.color});
+  CARDS=cards||[];
+}
+
+/* ===== 로그인 ===== */
+async function login(){
+  const id=document.getElementById('wid').value.trim(), pw=document.getElementById('wpw').value;
+  if(!id||!pw){ err('아이디와 비밀번호를 입력하세요'); return; }
+  err('로그인 중...');
+  const {data,error}=await sb.rpc('login',{p_id:id,p_pw:pw});
+  if(error){ err('서버 오류: '+error.message); return; }
+  if(data.error){ err(data.error); return; }
+  startSession(data);
+}
+function startSession(data){
+  me=data; token=data.token; currentUser=data.id;
+  dex=data.dex||{};
+  deck=[];
+  err(''); 
+  localStorage.setItem('war_session',JSON.stringify({id:currentUser,token}));
+  document.getElementById('auth').style.display='none';
+  document.getElementById('board').classList.add('on');
+  document.getElementById('meNick').textContent=me.nick;
+  document.getElementById('meLv').textContent='Lv.'+myLevel();
+  renderRank();
+  renderDeck();
+  loadDeck();
+  loadOpponents();
+  loadRankedLeft();
+}
+async function loadRankedLeft(){
+  const {data,error}=await sb.rpc('ranked_left',{p_id:currentUser,p_token:token});
+  if(!error && data && data.left!=null) updateRankedLeft(data.left);
+}
+function renderRank(){
+  if(me.rp==null) me.rp=1500;
+  const rt=rankTierOf(me.rp);
+  const el=document.getElementById('meRank');
+  el.style.setProperty('--rc',rt.color);
+  el.textContent=`${rt.icon} ${rt.name} ${me.rp}`;
+}
+async function loadDeck(){
+  const {data,error}=await sb.rpc('get_war_deck',{p_id:currentUser,p_token:token});
+  if(!error && data && !data.error){
+    if(Array.isArray(data.deck)){ deck=data.deck; renderDeck(); }
+    if(data.rp!=null){ me.rp=data.rp; renderRank(); }
+  }
+}
+function logout(){
+  me=null; token=null; currentUser=null; deck=[]; dex={};
+  localStorage.removeItem('war_session');
+  document.getElementById('board').classList.remove('on');
+  document.getElementById('auth').style.display='block';
+}
+
+/* ===== 부대 배치 ===== */
+function renderDeck(){
+  const grid=document.getElementById('deckGrid'); grid.innerHTML='';
+  const slots=deckSlots();
+  document.getElementById('deckHint').textContent=`현재 레벨 ${myLevel()} · 배치 칸 ${slots}개. 칸을 눌러 얼간이를 배치하세요.`;
+  for(let i=0;i<slots;i++){
+    const name=deck[i], f=name?CARDS.find(c=>c.name===name):null;
+    const cell=document.createElement('div');
+    cell.className='slot'+(f?' filled':'');
+    if(f){
+      const t=TIERS[f.tier]||{color:'#888'};
+      cell.style.setProperty('--sc',t.color);
+      cell.innerHTML=`${photoTag(f,'')}<div class="nm">${f.name}</div><span class="pw">${tierPower(f.tier)}</span>`;
+    } else cell.innerHTML=`<span class="plus">＋</span>`;
+    cell.onclick=()=>openPick(i);
+    grid.appendChild(cell);
+  }
+  document.getElementById('deckPower').textContent=deckPower();
+}
+function deckPower(){
+  let p=0;
+  deck.slice(0,deckSlots()).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=tierPower(f.tier); });
+  return p;
+}
+let pickSlot=null;
+function openPick(i){
+  pickSlot=i;
+  const grid=document.getElementById('pickGrid'); grid.innerHTML='';
+  const clear=document.createElement('div');
+  clear.className='pcard'; clear.style.setProperty('--tc','#888');
+  clear.innerHTML=`<div class="ph">🚫</div><div class="nm">비우기</div>`;
+  clear.onclick=()=>placeCard(null);
+  grid.appendChild(clear);
+  let any=false;
+  CARDS.forEach(c=>{
+    if(!(dex[c.name]>0)) return; any=true;
+    const t=TIERS[c.tier]||{color:'#888'};
+    const div=document.createElement('div');
+    div.className='pcard'; div.style.setProperty('--tc',t.color);
+    div.innerHTML=`${photoTag({photo:c.photo,name:c.name},'ph')}<div class="nm">${c.name}</div><div class="tr">${c.tier}</div><div class="pw">전투력 ${tierPower(c.tier)}</div>`;
+    div.onclick=()=>placeCard(c.name);
+    grid.appendChild(div);
+  });
+  if(!any) grid.insertAdjacentHTML('beforeend','<div style="color:var(--gray);padding:20px">아직 뽑은 얼간이가 없어요. 뽑기 사이트에서 먼저 뽑아오세요!</div>');
+  document.getElementById('pickOverlay').classList.add('on');
+}
+function closePick(){ document.getElementById('pickOverlay').classList.remove('on'); }
+function placeCard(name){
+  while(deck.length<deckSlots()) deck.push(null);
+  deck[pickSlot]=name||null;
+  closePick(); renderDeck();
+}
+async function saveDeck(){
+  const clean=deck.slice(0,deckSlots());
+  const {data,error}=await sb.rpc('save_war_deck',{p_id:currentUser,p_token:token,p_deck:clean});
+  if(error||(data&&data.error)){ toast('저장 실패'); return; }
+  deck=clean; toast('⚔️ 부대 저장 완료!'); loadOpponents();
+}
+
+/* ===== 전쟁 상대 ===== */
+function deckPowerOf(arr){
+  let p=0; (arr||[]).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=tierPower(f.tier); }); return p;
+}
+let OPPS=[];
+async function loadOpponents(){
+  const box=document.getElementById('oppList');
+  const {data,error}=await sb.rpc('list_opponents',{p_id:currentUser,p_token:token});
+  if(error||(data&&data.error)){ box.innerHTML='<div class="opp-empty">불러오기 실패</div>'; return; }
+  OPPS=data||[];
+  if(OPPS.length===0){ box.innerHTML='<div class="opp-empty">아직 부대를 저장한 다른 유저가 없어요. 친구가 부대를 저장하면 여기 나타나요!</div>'; return; }
+  box.innerHTML='';
+  OPPS.forEach((o,i)=>{
+    const lv=Math.floor((o.pulls||0)/PULLS_PER_LEVEL)+1, pow=deckPowerOf(o.war_deck);
+    const rankLabel = (o.rp!=null) ? (()=>{ const rt=rankTierOf(o.rp); return `<span style="color:${rt.color}">${rt.icon} ${rt.name} ${o.rp}</span> · `; })() : '';
+    const row=document.createElement('div'); row.className='opp';
+    row.innerHTML=`<div><div class="onm">${escapeHtml(o.nick)}</div><div class="olv">${rankLabel}Lv.${lv}</div></div>
+      <div class="opw">전투력 ${pow}</div>
+      <div class="btns">
+        <button class="b-practice" onclick="practiceBattle(${i})">🥊 연습</button>
+        <button class="b-ranked" onclick="rankedBattle(${i})">⚔️ 경쟁</button>
+      </div>`;
+    box.appendChild(row);
+  });
+}
+/* ===== 전투 ===== */
+function rollBattle(o){
+  const myPow=deckPower(), oppPow=deckPowerOf(o.war_deck);
+  const myRoll=myPow*(0.7+Math.random()*0.6), oppRoll=oppPow*(0.7+Math.random()*0.6);
+  return {myPow, oppPow, win: myRoll>=oppRoll};
+}
+async function fetchStory(o, myPow, oppPow, win){
+  try{
+    const myCards=deck.slice(0,deckSlots()).filter(Boolean);
+    const oppCards=(o.war_deck||[]).filter(Boolean);
+    const res=await fetch(STORY_FN,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({me:{nick:me.nick,cards:myCards},opp:{nick:o.nick,cards:oppCards},myPow,oppPow,win})});
+    const data=await res.json();
+    return data.story || '전투 기록이 소실되었다...';
+  }catch(e){ return '전장의 안개 속에서 기록이 사라졌다... (AI 연결 실패)'; }
+}
+function deckReady(){
+  const placed=deck.slice(0,deckSlots()).filter(Boolean);
+  if(placed.length===0){ toast('먼저 부대를 배치하고 저장하세요'); return false; }
+  return true;
+}
+async function practiceBattle(i){
+  if(!deckReady()) return;
+  const o=OPPS[i]; const {myPow,oppPow,win}=rollBattle(o);
+  warShell(o, myPow, oppPow, win, '<div class="war-loading">✍️ AI가 전쟁 스토리를 쓰는 중...</div>',
+    '<div class="war-reward" style="color:var(--gray)">🥊 연습 전투 · 점수 변동 없음</div>');
+  const story=await fetchStory(o,myPow,oppPow,win);
+  warShell(o, myPow, oppPow, win, `<div class="war-story">${escapeHtml(story)}</div>`,
+    '<div class="war-reward" style="color:var(--gray)">🥊 연습 전투 · 점수 변동 없음</div>');
+}
+async function rankedBattle(i){
+  if(!deckReady()) return;
+  const o=OPPS[i]; const {myPow,oppPow,win}=rollBattle(o);
+  const {data,error}=await sb.rpc('war_ranked',{p_id:currentUser,p_token:token,p_opp_id:o.id,p_win:win});
+  if(error){ toast('서버 오류'); return; }
+  if(data.error){ toast(data.limit?'오늘 경쟁전 3회를 다 썼어요!':data.error); if(data.limit) updateRankedLeft(0); return; }
+  me.rp=data.my_rp; renderRank(); updateRankedLeft(data.left);
+  const rt=rankTierOf(me.rp);
+  const footer=`<div class="war-reward" style="color:${win?'var(--gold)':'var(--gray)'}">
+    ⚔️ 경쟁전 · 랭크 ${data.my_delta>=0?'+':''}${data.my_delta} → ${rt.icon} ${rt.name} <b>${me.rp}</b><br>
+    <span style="font-size:12px;color:var(--gray)">상대 ${o.nick} ${data.opp_delta>=0?'+':''}${data.opp_delta} · 오늘 남은 경쟁전 ${data.left}회</span></div>`;
+  warShell(o, myPow, oppPow, win, '<div class="war-loading">✍️ AI가 전쟁 스토리를 쓰는 중...</div>', footer);
+  const story=await fetchStory(o,myPow,oppPow,win);
+  warShell(o, myPow, oppPow, win, `<div class="war-story">${escapeHtml(story)}</div>`, footer);
+  loadOpponents();  // 상대 점수도 바뀌었으니 목록 갱신
+}
+function warShell(o, myPow, oppPow, win, storyHtml, footerHtml){
+  document.getElementById('warTitle').textContent=`${me.nick} vs ${o.nick}`;
+  document.getElementById('warBody').innerHTML=`
+    <div class="war-vs">
+      <div class="side"><div class="nm">${escapeHtml(me.nick)}</div><div class="pw">전투력 ${myPow}</div></div>
+      <div class="mid">VS</div>
+      <div class="side"><div class="nm">${escapeHtml(o.nick)}</div><div class="pw">전투력 ${oppPow}</div></div>
+    </div>
+    <div class="war-result ${win?'win':'lose'}">${win?'🏆 승리!':'💀 패배...'}</div>
+    ${storyHtml}
+    ${footerHtml}`;
+  document.getElementById('warOverlay').classList.add('on');
+}
+function updateRankedLeft(n){
+  document.getElementById('rankedLeft').innerHTML=`· 오늘 경쟁전 <b>${n}</b>/3회 남음`;
+}
+function makePlaceholderStory(a,b,win){ return ''; }
+function closeWar(){ document.getElementById('warOverlay').classList.remove('on'); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* ===== 시작 ===== */
+(async function init(){
+  try{ await loadCards(); }catch(e){ err('서버 연결 실패'); return; }
+  const saved=localStorage.getItem('war_session');
+  if(saved){
+    try{
+      const {id,token:tk}=JSON.parse(saved);
+      const {data,error}=await sb.rpc('resume',{p_id:id,p_token:tk});
+      if(!error && data && !data.error) startSession(data);
+      else localStorage.removeItem('war_session');
+    }catch(e){ localStorage.removeItem('war_session'); }
+  }
+})();
+</script>
+</body>
+</html>
