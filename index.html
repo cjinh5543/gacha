@@ -17,6 +17,10 @@
     -webkit-background-clip:text;background-clip:text;color:transparent;
     filter:drop-shadow(0 2px 12px rgba(162,91,255,.4));}
   .sub{color:var(--gray);font-size:14px;margin:8px 0 24px;text-align:center;}
+  .war-link{display:inline-block;margin:-12px 0 22px;padding:10px 22px;border-radius:999px;text-decoration:none;
+    font-weight:800;font-size:14px;color:#fff;background:linear-gradient(90deg,#ff5b5b,#ff8a3a);
+    box-shadow:0 6px 20px rgba(255,91,91,.4);transition:transform .15s;}
+  .war-link:hover{transform:translateY(-2px) scale(1.03);}
 
   /* ===== 왼쪽 컬럼 (계정 + 랭킹) ===== */
   .leftcol{position:fixed;top:16px;left:16px;z-index:60;width:214px;
@@ -252,6 +256,7 @@
     .leftcol,.rate-table,.rightcol{position:static;width:100%;max-width:420px;margin:0 auto;max-height:none;overflow:visible;}
     h1{margin-top:6px;order:1;}
     .sub{order:2;}
+    .war-link{order:2;}
     .stage{order:3;height:400px;width:min(330px,90vw);}
     .pull-btns{order:4;}
     #pullBtn{order:4;}
@@ -316,6 +321,7 @@
 
 <h1>🦖 얼간이 뽑기 🦖</h1>
 <p class="sub">공룡이 똥을 싸면 얼간이가 나옵니다 💩</p>
+<a class="war-link" href="war.html">⚔️ 얼간이 대전쟁 하러 가기</a>
 
 <div class="stage" id="stage">
   <div class="idle" id="idle"><div class="dino-idle">🦖</div>로그인하고 뽑아보세요</div>
