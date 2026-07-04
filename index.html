@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>얼간이 뽑기</title>
+<style>
+  @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+  :root{--bg:#0d0a1f;--gold:#ffd54a;--purple:#a25bff;--blue:#4aa6ff;--gray:#8b93a7;--dark:#3a3f4d;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard',sans-serif;
+    background:radial-gradient(circle at 50% 0%, #1c1440 0%, var(--bg) 60%);
+    color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    padding:24px;overflow-x:hidden;}
+  h1{font-size:clamp(28px,7vw,44px);font-weight:900;letter-spacing:-1px;text-align:center;margin-top:64px;
+    background:linear-gradient(90deg,var(--gold),var(--purple),var(--blue));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 12px rgba(162,91,255,.4));}
+  .sub{color:var(--gray);font-size:14px;margin:8px 0 24px;text-align:center;}
+
+  /* ===== 왼쪽 컬럼 (계정 + 랭킹) ===== */
+  .leftcol{position:fixed;top:16px;left:16px;z-index:60;width:214px;
+    display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 32px);overflow-y:auto;}
+  .auth,.rankpanel{background:rgba(20,15,45,.92);border:1px solid var(--dark);border-radius:14px;
+    padding:14px;backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .auth h4{font-size:12px;color:var(--gray);margin-bottom:10px;font-weight:600;letter-spacing:.5px;}
+  .auth input{width:100%;padding:8px 10px;margin-bottom:8px;border-radius:8px;border:1px solid var(--dark);
+    background:#120e28;color:#fff;font-family:inherit;font-size:13px;}
+  .auth input:focus{outline:1px solid var(--purple);}
+  /* 탭 */
+  .tabs{display:flex;gap:6px;margin-bottom:12px;}
+  .tab{flex:1;padding:8px;border:none;border-radius:8px;font-family:inherit;font-weight:800;font-size:13px;
+    cursor:pointer;background:transparent;color:var(--gray);border:1px solid var(--dark);transition:all .12s;}
+  .tab.on{background:linear-gradient(90deg,var(--purple),var(--blue));color:#fff;border-color:transparent;}
+  .b-primary{background:linear-gradient(90deg,var(--gold),#ffb03a);color:#0d0a1f;}
+  .b-primary.full{width:100%;padding:11px;border:none;border-radius:8px;font-family:inherit;font-weight:800;
+    font-size:14px;cursor:pointer;transition:transform .1s;}
+  .b-primary.full:active{transform:scale(.97);}
+  .auth .note{font-size:10px;color:#6b7186;margin-top:8px;line-height:1.4;}
+  .auth .err{font-size:11px;color:#ff7b7b;margin-top:2px;min-height:14px;}
+  .hidden{display:none;}
+
+  /* 로그인 후 프로필 */
+  .profile{display:none;}
+  .profile.on{display:block;}
+  .profile .pname{font-size:17px;font-weight:900;}
+  .profile .pcount{font-size:12px;color:var(--gray);margin:4px 0 6px;}
+  .profile .pfood{font-size:13px;font-weight:800;color:var(--gold);margin-bottom:12px;}
+  .profile .p-dex{width:100%;padding:11px;border:none;border-radius:9px;font-family:inherit;
+    font-weight:800;font-size:14px;cursor:pointer;background:linear-gradient(90deg,var(--purple),var(--blue));color:#fff;}
+  .profile .p-logout{width:100%;margin-top:7px;padding:7px;background:transparent;border:1px solid var(--dark);
+    color:var(--gray);border-radius:8px;font-family:inherit;font-size:12px;cursor:pointer;}
+  /* 랭킹 패널 */
+  .rankpanel h4{font-size:12px;color:var(--gray);margin-bottom:10px;font-weight:600;letter-spacing:.5px;}
+  .rank-row{display:flex;align-items:center;gap:8px;font-size:12px;margin:6px 0;}
+  .rank-row .medal{width:18px;text-align:center;flex:none;font-weight:800;}
+  .rank-row .rname{flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rank-row .rnum{color:#cfd4e0;font-variant-numeric:tabular-nums;flex:none;}
+  .rank-row.me{color:var(--gold);}
+  .rank-row.me .rnum{color:var(--gold);}
+  .rank-empty{font-size:11px;color:#6b7186;}
+
+  /* ===== 확률표 (오른쪽 위) ===== */
+  .rate-table{position:fixed;top:16px;right:16px;z-index:50;
+    background:rgba(20,15,45,.92);border:1px solid var(--dark);border-radius:14px;
+    padding:12px 14px;backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:150px;}
+  .rate-table h4{font-size:12px;color:var(--gray);margin-bottom:8px;font-weight:600;letter-spacing:.5px;}
+  .rate-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;margin:5px 0;}
+  .rate-name{display:flex;align-items:center;gap:6px;font-weight:700;}
+  .rate-dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .rate-pct{color:#cfd4e0;font-variant-numeric:tabular-nums;}
+
+  /* ===== 무대 ===== */
+  .stage{width:min(340px,88vw);height:460px;position:relative;display:flex;align-items:center;justify-content:center;perspective:1000px;}
+  .idle{text-align:center;color:var(--gray);}
+  .dino-idle{font-size:120px;animation:float 3s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.5));}
+  @keyframes float{50%{transform:translateY(-14px);}}
+  /* 똥 싸는 공룡 (무대 위쪽) */
+  .trex{position:absolute;top:-20px;left:52%;transform:translateX(-50%) scaleX(-1);font-size:130px;z-index:6;pointer-events:none;filter:drop-shadow(0 8px 16px rgba(0,0,0,.5));}
+  .trex.pooping{animation:poopStrain 1s ease;}
+  @keyframes poopStrain{
+    0%{transform:translateX(-50%) scaleX(-1) translateY(-40px) scale(.8);opacity:0;}
+    20%{transform:translateX(-50%) scaleX(-1) translateY(0) scale(1);opacity:1;}
+    35%{transform:translateX(-50%) scaleX(-1) translateY(0) scale(1.05,.92);}   /* 힘주기 */
+    45%{transform:translateX(-50%) scaleX(-1) translateY(0) scale(.94,1.08);}   /* 뿌직 */
+    55%{transform:translateX(-50%) scaleX(-1) translateY(0) scale(1.03,.95);}
+    75%{transform:translateX(-50%) scaleX(-1) translateY(0) scale(1);opacity:1;}
+    100%{transform:translateX(-50%) scaleX(-1) translateY(-30px) scale(.85);opacity:0;}}
+  /* 떨어지는 똥 */
+  .poop{position:absolute;top:70px;left:50%;transform:translateX(-50%);font-size:70px;z-index:5;pointer-events:none;}
+  .poop.drop{animation:poopDrop 1s ease;}
+  @keyframes poopDrop{
+    0%{transform:translateX(-50%) translateY(-40px) scale(.3);opacity:0;}
+    45%{transform:translateX(-50%) translateY(-40px) scale(.3);opacity:0;}   /* 공룡이 힘주는 동안 대기 */
+    60%{transform:translateX(-50%) translateY(90px) scale(1.1);opacity:1;}   /* 뿌직 낙하 */
+    72%{transform:translateX(-50%) translateY(80px) scale(1.25,.8);}         /* 착지 찌부 */
+    85%{transform:translateX(-50%) translateY(85px) scale(.9,1.1);}
+    100%{transform:translateX(-50%) translateY(85px) scale(1);opacity:1;}}
+  .poop.fade{animation:poopFade .5s ease forwards;}
+  @keyframes poopFade{to{opacity:0;transform:translateX(-50%) translateY(120px) scale(.4);}}
+  .card{width:100%;height:100%;border-radius:24px;position:relative;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:28px;text-align:center;
+    background:rgba(255,255,255,.04);border:2px solid var(--tier-color,#555);
+    box-shadow:0 0 50px var(--tier-glow,transparent),inset 0 0 30px rgba(0,0,0,.4);}
+  /* 똥에서 카드가 솟아오름 */
+  .card.spit{animation:spit .9s cubic-bezier(.2,.8,.3,1.2);}
+  @keyframes spit{0%{transform:translateY(150px) scale(.15) rotate(12deg);opacity:0;}   /* 똥 속에서 */
+    45%{transform:translateY(150px) scale(.15) rotate(12deg);opacity:0;}
+    65%{transform:translateY(-14px) scale(1.12) rotate(-6deg);opacity:1;}                /* 뿅 솟음 */
+    80%{transform:translateY(6px) scale(.96) rotate(3deg);}
+    100%{transform:translateY(0) scale(1) rotate(0);opacity:1;}}
+  .tier-badge{font-size:15px;font-weight:800;padding:5px 16px;border-radius:999px;
+    background:var(--tier-color);color:#0d0a1f;margin-bottom:18px;box-shadow:0 0 18px var(--tier-glow);}
+  .photo{width:150px;height:150px;border-radius:50%;object-fit:cover;border:4px solid var(--tier-color);
+    background:#222;box-shadow:0 0 30px var(--tier-glow);display:flex;align-items:center;justify-content:center;font-size:64px;}
+  .name{font-size:26px;font-weight:900;margin:18px 0 8px;}
+  .desc{font-size:15px;color:#d4d8e4;line-height:1.5;}
+
+  .btn{margin-top:24px;padding:16px 44px;font-size:18px;font-weight:800;font-family:inherit;color:#0d0a1f;
+    border:none;border-radius:999px;background:linear-gradient(90deg,var(--gold),#ffb03a);
+    box-shadow:0 6px 24px rgba(255,176,58,.5);cursor:pointer;transition:transform .15s;}
+  .btn:hover{transform:translateY(-2px) scale(1.03);}
+  .btn:active{transform:scale(.96);}
+  .btn:disabled{opacity:.5;cursor:default;transform:none;}
+  .spark{position:fixed;width:8px;height:8px;border-radius:50%;pointer-events:none;background:var(--gold);box-shadow:0 0 8px 2px currentColor;}
+  .pity{margin-top:12px;font-size:13px;color:var(--gray);text-align:center;min-height:18px;}
+  .pity b{color:var(--blue);}
+
+  /* ===== 도감 모달 ===== */
+  .overlay{position:fixed;inset:0;z-index:80;background:rgba(5,3,15,.8);backdrop-filter:blur(4px);
+    display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
+  .overlay.on{display:flex;}
+  .dex-modal{width:min(720px,94vw);background:#140f2b;border:1px solid var(--dark);border-radius:20px;padding:24px;}
+  .dex-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .dex-head h3{font-size:20px;font-weight:900;}
+  .dex-head .close{background:transparent;border:1px solid var(--dark);color:#cfd4e0;border-radius:9px;
+    width:34px;height:34px;font-size:18px;cursor:pointer;}
+  .dex-prog{font-size:13px;color:var(--gray);margin-bottom:16px;}
+  .dex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;}
+  .dex-card{border-radius:16px;padding:16px 12px;text-align:center;background:rgba(255,255,255,.03);
+    border:1.5px solid var(--dark);position:relative;}
+  .dex-card.owned{border-color:var(--tc);box-shadow:0 0 20px -6px var(--tg);}
+  .dex-card.locked{filter:grayscale(1);opacity:.45;}
+  .dex-photo{width:74px;height:74px;border-radius:50%;margin:0 auto 10px;object-fit:cover;background:#222;
+    display:flex;align-items:center;justify-content:center;font-size:36px;border:2.5px solid var(--tc,#444);}
+  .dex-name{font-size:15px;font-weight:800;}
+  .dex-tier{font-size:11px;font-weight:700;color:var(--tc);margin-top:3px;}
+  .dex-desc{font-size:11px;color:var(--gray);margin-top:6px;line-height:1.4;min-height:30px;}
+  .dex-count{position:absolute;top:8px;right:8px;font-size:10px;font-weight:800;background:var(--tc);
+    color:#0d0a1f;border-radius:999px;padding:2px 7px;}
+  .locked-hint{text-align:center;color:var(--gray);font-size:14px;padding:30px 0;}
+</style>
+</head>
+<body>
+
+<!-- 왼쪽 컬럼 (계정 + 랭킹) -->
+<div class="leftcol">
+  <div class="auth">
+    <!-- 로그인/회원가입 -->
+    <div class="authForms" id="authForms">
+      <div class="tabs">
+        <button class="tab on" id="tabLogin" onclick="showTab('login')">로그인</button>
+        <button class="tab" id="tabSignup" onclick="showTab('signup')">회원가입</button>
+      </div>
+      <!-- 로그인 폼 -->
+      <div id="loginForm">
+        <input id="li_id" placeholder="아이디" autocomplete="off">
+        <input id="li_pw" type="password" placeholder="비밀번호" autocomplete="off">
+        <button class="b-primary full" onclick="login()">로그인</button>
+      </div>
+      <!-- 회원가입 폼 -->
+      <div id="signupForm" class="hidden">
+        <input id="su_id" placeholder="아이디" autocomplete="off">
+        <input id="su_pw" type="password" placeholder="비밀번호" autocomplete="off">
+        <input id="su_nick" placeholder="닉네임" autocomplete="off">
+        <button class="b-primary full" onclick="signup()">회원가입</button>
+      </div>
+      <div class="err" id="authErr"></div>
+      <div class="note">⚠️ 재미용이에요. 실제로 쓰는 비밀번호는 넣지 마세요.</div>
+    </div>
+    <!-- 로그인 후 프로필 -->
+    <div class="profile" id="profile">
+      <div class="pname" id="pName">이름</div>
+      <div class="pcount" id="pCount">수집도 0 / 0</div>
+      <div class="pfood" id="pFood">🍖 먹이 0개</div>
+      <button class="p-dex" onclick="openDex()">📖 도감 열기</button>
+      <button class="p-logout" onclick="logout()">로그아웃</button>
+    </div>
+  </div>
+
+  <!-- 랭킹 (별도 패널) -->
+  <div class="rankpanel">
+    <h4>🏆 수집도 랭킹</h4>
+    <div id="rankList"><div class="rank-empty">불러오는 중...</div></div>
+  </div>
+</div>
+
+<!-- 확률표 -->
+<div class="rate-table" id="rateTable"><h4>확률표</h4></div>
+
+<h1>🦖 얼간이 뽑기 🦖</h1>
+<p class="sub">공룡이 똥을 싸면 얼간이가 나옵니다 💩</p>
+
+<div class="stage" id="stage">
+  <div class="idle" id="idle"><div class="dino-idle">🦖</div>로그인하고 뽑아보세요</div>
+</div>
+<button class="btn" id="pullBtn" onclick="pull()">🦴 뽑기!</button>
+<div class="pity" id="pity"></div>
+
+<!-- 도감 모달 -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeDex()">
+  <div class="dex-modal">
+    <div class="dex-head"><h3>📖 얼간이 도감</h3><button class="close" onclick="closeDex()">×</button></div>
+    <div class="dex-prog" id="dexProg"></div>
+    <div class="dex-grid" id="dexGrid"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* =========================================================
+   서버(Supabase) 연결 정보
+   ========================================================= */
+const SUPABASE_URL = "https://syxodvibawtrdulpwwmp.supabase.co";
+const SUPABASE_KEY = "sb_publishable_vEcD6gUy63cO8jTEqCfYRw_T90dB4_g";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* 카드/등급은 이제 서버에서 불러옵니다.
+   (수정하려면 Supabase 대시보드의 Table Editor에서 cards / tiers 표를 고치세요) */
+let FRIENDS = [];
+let TIERS = {};
+let TOTAL_RATE = 0;
+let HIGH_TIERS = [];
+
+const stage=document.getElementById('stage'), idle=document.getElementById('idle'), btn=document.getElementById('pullBtn');
+let currentUser=null;   // 로그인한 아이디
+let dex={};             // 현재 유저 도감 {이름:횟수}
+
+/* ---- 확률표: 실제 확률(비율 보정) 표시 ---- */
+function renderRateTable(){
+  const el=document.getElementById('rateTable');
+  el.innerHTML='<h4>확률표</h4>';
+  for(const [n,t] of Object.entries(TIERS)){
+    const real=(t.rate/TOTAL_RATE*100);
+    el.insertAdjacentHTML('beforeend',
+      `<div class="rate-row"><span class="rate-name"><span class="rate-dot" style="background:${t.color}"></span>${n}</span><span class="rate-pct">${real.toFixed(2)}%</span></div>`);
+  }
+}
+
+/* ================= 설정값 ================= */
+const PITY_MAX = 10;               // 10회 안에 으이~ 이상 확정
+const FOOD_PER_DAY = 10;           // 하루가 넘어갈 때마다 주는 먹이
+const START_FOOD = 10;             // 가입 시 기본 먹이
+// "으이~ 이상" 판정 (HIGH_TIERS는 서버 데이터 로드 후 채워짐)
+const isHigh = name => HIGH_TIERS.includes(name);
+
+/* ---- 한국(KST) 날짜 문자열: 자정(12시 기준) 기준 하루 계산 ---- */
+function kstToday(){
+  const k = new Date(Date.now() + 9*3600*1000); // UTC+9
+  return k.toISOString().slice(0,10);           // "YYYY-MM-DD"
+}
+function daysBetween(fromStr,toStr){
+  const a=new Date(fromStr+'T00:00:00Z'), b=new Date(toStr+'T00:00:00Z');
+  return Math.max(0, Math.round((b-a)/86400000));
+}
+
+/* ================= 계정 (서버 Supabase) ================= */
+let me = null;   // 현재 로그인한 플레이어의 서버 데이터
+let token = null;
+function err(m){ document.getElementById('authErr').textContent=m||''; }
+
+function showTab(which){
+  const login=which==='login';
+  document.getElementById('tabLogin').classList.toggle('on',login);
+  document.getElementById('tabSignup').classList.toggle('on',!login);
+  document.getElementById('loginForm').classList.toggle('hidden',!login);
+  document.getElementById('signupForm').classList.toggle('hidden',login);
+  err('');
+}
+
+// 하루 넘어간 만큼 먹이 지급 (로그인 시 계산)
+function grantFood(){
+  const today=kstToday();
+  const days=daysBetween(me.last_food_date, today);
+  if(days>0){ me.food += days*FOOD_PER_DAY; me.last_food_date=today; return true; }
+  return false;
+}
+
+async function signup(){
+  const id=su_id.value.trim(), pw=su_pw.value, nick=su_nick.value.trim();
+  if(!id||!pw){err('아이디와 비밀번호를 입력하세요');return;}
+  if(!nick){err('닉네임을 입력하세요');return;}
+  err('가입 중...');
+  const {data,error}=await sb.rpc('signup',{p_id:id,p_pw:pw,p_nick:nick});
+  if(error){err('서버 오류: '+error.message);return;}
+  if(data.error){err(data.error);return;}
+  applySession(data, true);
+}
+async function login(){
+  const id=li_id.value.trim(), pw=li_pw.value;
+  if(!id||!pw){err('아이디와 비밀번호를 입력하세요');return;}
+  err('로그인 중...');
+  const {data,error}=await sb.rpc('login',{p_id:id,p_pw:pw});
+  if(error){err('서버 오류: '+error.message);return;}
+  if(data.error){err(data.error);return;}
+  applySession(data, true);
+}
+async function applySession(data, isNew){
+  me=data; token=data.token; currentUser=data.id;
+  dex=me.dex||{};
+  // 밀린 먹이 지급 후 서버에 반영
+  if(grantFood()) await saveProgress();
+  err('');
+  li_id.value=li_pw.value=su_id.value=su_pw.value=su_nick.value='';
+  document.getElementById('authForms').classList.add('hidden');
+  document.getElementById('profile').classList.add('on');
+  document.getElementById('pName').textContent=me.nick;
+  idle.style.display='block';
+  idle.innerHTML='<div class="dino-idle">🦖</div>버튼을 누르면 공룡이 똥을 싸요 💩';
+  localStorage.setItem('gacha_session',JSON.stringify({id:currentUser,token}));
+  updateProfile(); updatePity(); renderRank();
+}
+function logout(){
+  me=null; token=null; currentUser=null; dex={};
+  document.getElementById('authForms').classList.remove('hidden');
+  document.getElementById('profile').classList.remove('on');
+  showTab('login');
+  stage.querySelectorAll('.card,.trex,.poop').forEach(c=>c.remove());
+  idle.style.display='block';
+  idle.innerHTML='<div class="dino-idle">🦖</div>로그인하고 뽑아보세요';
+  document.getElementById('pity').textContent='';
+  localStorage.removeItem('gacha_session');
+}
+// 서버에 진행상황 저장
+async function saveProgress(){
+  if(!currentUser) return;
+  const {error}=await sb.rpc('save_progress',{
+    p_id:currentUser, p_token:token, p_dex:me.dex, p_food:me.food,
+    p_last_food_date:me.last_food_date, p_pity:me.pity,
+    p_collect:me.collect, p_collect_at:me.collect_at
+  });
+  if(error) console.error('저장 실패', error);
+}
+
+function updateProfile(){
+  if(!me) return;
+  const got=FRIENDS.filter(f=>dex[f.name]>0).length;
+  document.getElementById('pCount').textContent=`수집도 ${got} / ${FRIENDS.length}`;
+  document.getElementById('pFood').textContent=`🍖 먹이 ${me.food}개`;
+}
+function updatePity(){
+  if(!me) return;
+  const left=PITY_MAX - me.pity;
+  document.getElementById('pity').innerHTML=`으이~ 이상 확정까지 <b>${left}</b>회`;
+}
+
+/* ================= 랭킹 (서버에서) ================= */
+async function renderRank(){
+  const box=document.getElementById('rankList');
+  const {data,error}=await sb.rpc('get_ranking');
+  if(error){ box.innerHTML='<div class="rank-empty">랭킹 불러오기 실패</div>'; return; }
+  if(!data || data.length===0){ box.innerHTML='<div class="rank-empty">아직 없음</div>'; return; }
+  const medals=['🥇','🥈','🥉','4','5'];
+  box.innerHTML=data.map((r,i)=>
+    `<div class="rank-row ${me&&r.nick===me.nick?'me':''}">
+       <span class="medal">${medals[i]}</span>
+       <span class="rname">${r.nick}</span>
+       <span class="rnum">${r.collect}종</span>
+     </div>`).join('');
+}
+
+/* ================= 뽑기 ================= */
+function photoTag(f,cls){
+  return f.photo.startsWith('http')
+    ? `<img class="${cls}" src="${f.photo}" alt="${f.name}">`
+    : `<div class="${cls}">${f.photo}</div>`;
+}
+function pickTier(forceHigh){
+  if(forceHigh){
+    // 으이~ 이상만 놓고 그 안에서 비율대로
+    const total=HIGH_TIERS.reduce((s,n)=>s+TIERS[n].rate,0);
+    let r=Math.random()*total, acc=0;
+    for(const n of HIGH_TIERS){ acc+=TIERS[n].rate; if(r<=acc) return n; }
+    return HIGH_TIERS.at(-1);
+  }
+  let r=Math.random()*TOTAL_RATE, acc=0;
+  for(const [n,t] of Object.entries(TIERS)){acc+=t.rate; if(r<=acc) return n;}
+  return Object.keys(TIERS).at(-1);
+}
+function pull(){
+  if(!currentUser){err('먼저 로그인하세요');li_id.focus();showTab('login');return;}
+  if(me.food<=0){
+    document.getElementById('pity').innerHTML='먹이가 없어요! 🍖 내일 자정에 10개 충전돼요';
+    return;
+  }
+
+  // 천장: 이번이 10번째면 으이~ 이상 확정
+  const forceHigh = (me.pity >= PITY_MAX-1);
+  const tierName=pickTier(forceHigh);
+  let pool=FRIENDS.filter(f=>f.tier===tierName);
+  if(pool.length===0) pool=FRIENDS;
+  const f=pool[Math.floor(Math.random()*pool.length)];
+  const t=TIERS[f.tier]||{color:"#888",glow:"transparent"};
+
+  // 먹이 소모 + 천장 카운트 갱신
+  me.food -= 1;
+  me.pity = isHigh(f.tier) ? 0 : me.pity+1;
+
+  // 도감 반영
+  dex[f.name]=(dex[f.name]||0)+1;
+  me.dex=dex;
+  const newCollect=FRIENDS.filter(x=>dex[x.name]>0).length;
+  if(newCollect > (me.collect||0)){ me.collect=newCollect; me.collect_at=new Date().toISOString(); }
+  saveProgress(); // 서버에 저장 (비동기)
+
+  btn.disabled=true; idle.style.display='none';
+  stage.querySelectorAll('.card,.trex,.poop').forEach(c=>c.remove());
+
+  // 1) 공룡이 힘주기
+  const trex=document.createElement('div');
+  trex.className='trex pooping'; trex.textContent='🦖';
+  stage.appendChild(trex);
+  // 2) 똥이 뿌직 떨어짐
+  const poop=document.createElement('div');
+  poop.className='poop drop'; poop.textContent='💩';
+  stage.appendChild(poop);
+  // 3) 똥에서 카드가 뿅 솟아오름
+  setTimeout(()=>{
+    poop.classList.add('fade');
+    const card=document.createElement('div');
+    card.className='card spit';
+    card.style.setProperty('--tier-color',t.color);
+    card.style.setProperty('--tier-glow',t.glow);
+    card.innerHTML=`<div class="tier-badge">${f.tier}</div>${photoTag(f,'photo')}<div class="name">${f.name}</div><div class="desc">${f.desc}</div>`;
+    stage.appendChild(card);
+    sparkle(t.color);
+  },650);
+  setTimeout(()=>{trex.remove();poop.remove();},1150);
+
+  updateProfile(); updatePity(); renderRank();
+  setTimeout(()=>btn.disabled=false,1200);
+}
+function sparkle(color){
+  const cx=innerWidth/2, cy=innerHeight/2.6;
+  const n=color==="#ffd54a"?45:22;
+  for(let i=0;i<n;i++){
+    const s=document.createElement('div');
+    s.className='spark'; s.style.color=color; s.style.left=cx+'px'; s.style.top=cy+'px';
+    document.body.appendChild(s);
+    const ang=Math.random()*6.28, dist=80+Math.random()*180;
+    const dx=Math.cos(ang)*dist, dy=Math.sin(ang)*dist;
+    s.animate([{transform:'translate(0,0) scale(1)',opacity:1},
+      {transform:`translate(${dx}px,${dy}px) scale(0)`,opacity:0}],
+      {duration:700+Math.random()*400,easing:'cubic-bezier(.1,.7,.3,1)'}).onfinish=()=>s.remove();
+  }
+}
+
+/* ================= 도감 모달 ================= */
+function openDex(){
+  const grid=document.getElementById('dexGrid'); grid.innerHTML='';
+  let count=0;
+  FRIENDS.forEach(f=>{
+    const t=TIERS[f.tier]||{color:"#888",glow:"transparent"};
+    const got=dex[f.name]||0; if(got>0) count++;
+    const div=document.createElement('div');
+    div.className='dex-card '+(got>0?'owned':'locked');
+    div.style.setProperty('--tc',t.color); div.style.setProperty('--tg',t.glow);
+    div.innerHTML = got>0
+      ? `<div class="dex-count">×${got}</div>${photoTag(f,'dex-photo')}<div class="dex-name">${f.name}</div><div class="dex-tier">${f.tier}</div><div class="dex-desc">${f.desc}</div>`
+      : `<div class="dex-photo">❓</div><div class="dex-name">???</div><div class="dex-tier">미획득</div><div class="dex-desc">아직 안 뽑았어요</div>`;
+    grid.appendChild(div);
+  });
+  document.getElementById('dexProg').textContent=`${count} / ${FRIENDS.length} 수집`;
+  document.getElementById('overlay').classList.add('on');
+}
+function closeDex(){ document.getElementById('overlay').classList.remove('on'); }
+
+/* ================= 서버에서 카드/등급 불러오기 ================= */
+async function loadGameData(){
+  const [{data:tiers,error:e1},{data:cards,error:e2}] = await Promise.all([
+    sb.from('tiers').select('*').order('sort_order'),
+    sb.from('cards').select('*')
+  ]);
+  if(e1||e2){ throw (e1||e2); }
+
+  TIERS = {};
+  tiers.forEach(t=>{ TIERS[t.name]={color:t.color, glow:t.glow, rate:Number(t.rate)}; });
+  TOTAL_RATE = Object.values(TIERS).reduce((s,t)=>s+t.rate,0);
+  HIGH_TIERS = tiers.slice(0,3).map(t=>t.name); // 위쪽 3개 = 으이~ 이상
+
+  FRIENDS = cards.map(c=>({ name:c.name, photo:c.photo, desc:c.description, tier:c.tier }));
+}
+
+/* ================= 시작 ================= */
+(async function init(){
+  showTab('login');
+  idle.innerHTML='<div class="dino-idle">🦖</div>서버에서 불러오는 중...';
+  try{
+    await loadGameData();
+  }catch(e){
+    console.error(e);
+    idle.innerHTML='<div class="dino-idle">😵</div>서버 연결에 실패했어요.<br>새로고침 해보세요.';
+    return;
+  }
+  renderRateTable();
+  renderRank();
+  idle.innerHTML='<div class="dino-idle">🦖</div>로그인하고 뽑아보세요';
+
+  // 새로고침 시 토큰으로 세션 복구
+  const saved=localStorage.getItem('gacha_session');
+  if(saved){
+    try{
+      const {id,token:tk}=JSON.parse(saved);
+      const {data,error}=await sb.rpc('resume',{p_id:id,p_token:tk});
+      if(!error && data && !data.error){ applySession(data,false); }
+      else localStorage.removeItem('gacha_session');
+    }catch(e){ localStorage.removeItem('gacha_session'); }
+  }
+})();
+</script>
+</body>
+</html>
