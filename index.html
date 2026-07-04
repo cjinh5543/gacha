@@ -195,22 +195,37 @@
   .cd-count{font-size:13px;color:var(--gray);margin-bottom:12px;}
   .cd-desc{font-size:15px;color:#d4d8e4;line-height:1.5;}
 
-  /* 뽑기 알림 피드 (오른쪽, 확률표 아래) */
-  .feed{position:fixed;top:230px;right:16px;z-index:50;width:210px;
-    background:rgba(20,15,45,.92);border:1px solid var(--dark);border-radius:14px;padding:12px 14px;
-    backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:calc(100vh - 260px);overflow-y:auto;}
-  .feed h4{font-size:12px;color:var(--gray);margin-bottom:10px;font-weight:600;letter-spacing:.5px;}
+  /* 오른쪽 컬럼 (먹이 주기 + 뽑기 소식) */
+  .rightcol{position:fixed;top:230px;right:16px;z-index:50;width:214px;
+    display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 250px);}
+  .feed,.tapper{background:rgba(20,15,45,.92);border:1px solid var(--dark);border-radius:14px;
+    padding:12px 14px;backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .feed{overflow-y:auto;min-height:0;}
+  .feed h4,.tapper h4{font-size:12px;color:var(--gray);margin-bottom:10px;font-weight:600;letter-spacing:.5px;}
   .feed-item{font-size:12px;line-height:1.45;padding:7px 9px;border-radius:8px;background:rgba(255,255,255,.03);
     margin-bottom:6px;border-left:3px solid var(--fc,#888);animation:feedIn .4s ease;}
   @keyframes feedIn{from{opacity:0;transform:translateX(10px);}to{opacity:1;transform:none;}}
   .feed-item b{color:#fff;}
   .feed-item .ft{font-weight:800;color:var(--fc);}
   .feed-empty{font-size:11px;color:#6b7186;}
+  /* 먹이 주기 버튼 */
+  .tapper{flex:none;text-align:center;}
+  .tap-btn{width:100%;padding:16px;border:none;border-radius:12px;font-family:inherit;cursor:pointer;
+    background:linear-gradient(135deg,#3a2f6b,#241a4d);color:#fff;font-size:34px;line-height:1;transition:transform .06s;
+    display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .tap-btn span{font-size:13px;font-weight:800;color:var(--gold);}
+  .tap-btn:active{transform:scale(.93);}
+  .tap-btn.pop{animation:tapPop .2s ease;}
+  @keyframes tapPop{50%{transform:scale(1.08);}}
+  .tap-bar{height:8px;background:#0e0b22;border-radius:999px;margin:10px 0 6px;overflow:hidden;}
+  .tap-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--gold),#ffb03a);border-radius:999px;transition:width .12s;}
+  .tap-info{font-size:11px;color:var(--gray);}
+  .tap-info b{color:var(--gold);}
 
   /* ===== 모바일: 고정 패널을 일반 흐름으로 내려 겹침 방지 ===== */
   @media (max-width:820px){
     body{padding:16px;}
-    .leftcol,.rate-table,.feed{position:static;width:100%;max-width:420px;margin:0 auto;max-height:none;overflow:visible;}
+    .leftcol,.rate-table,.rightcol{position:static;width:100%;max-width:420px;margin:0 auto;max-height:none;overflow:visible;}
     h1{margin-top:6px;order:1;}
     .sub{order:2;}
     .stage{order:3;height:400px;width:min(330px,90vw);}
@@ -218,8 +233,8 @@
     #pullBtn{order:4;}
     .pity{order:5;}
     .rate-table{order:6;margin-top:18px;}
-    .feed{order:8;margin-top:12px;}
-    .leftcol{order:7;margin-top:14px;}
+    .rightcol{order:7;margin-top:12px;}
+    .leftcol{order:8;margin-top:12px;}
     .dino-idle{font-size:92px;}
     .trex{font-size:104px;}
     .poop{font-size:56px;}
@@ -301,10 +316,20 @@
   <div class="card-detail" id="cardDetail"></div>
 </div>
 
-<!-- 뽑기 알림 피드 (오른쪽) -->
-<div class="feed" id="feed">
-  <h4>📢 뽑기 소식</h4>
-  <div id="feedList"><div class="feed-empty">아직 소식이 없어요</div></div>
+<!-- 오른쪽 컬럼 (먹이 주기 + 뽑기 소식) -->
+<div class="rightcol">
+  <!-- 먹이 주기 (터치 50번당 먹이 1개) -->
+  <div class="tapper" id="tapper">
+    <h4>🍖 먹이 주기</h4>
+    <button class="tap-btn" id="tapBtn" onclick="doTap()">🦴<span>톡톡!</span></button>
+    <div class="tap-bar"><div class="tap-fill" id="tapFill"></div></div>
+    <div class="tap-info" id="tapInfo">50번 누르면 먹이 1개!</div>
+  </div>
+  <!-- 뽑기 알림 피드 -->
+  <div class="feed" id="feed">
+    <h4>📢 뽑기 소식</h4>
+    <div id="feedList"><div class="feed-empty">아직 소식이 없어요</div></div>
+  </div>
 </div>
 
 <!-- 연속 뽑기 결과 오버레이 -->
@@ -408,6 +433,7 @@ async function login(){
 }
 async function applySession(data, isNew){
   me=data; token=data.token; currentUser=data.id;
+  if(me.tap_count==null) me.tap_count=0;
   dex=me.dex||{};
   // 밀린 먹이 지급 후 서버에 반영
   if(grantFood()) await saveProgress();
@@ -419,7 +445,7 @@ async function applySession(data, isNew){
   idle.style.display='block';
   idle.innerHTML='<div class="dino-idle">🦖</div>버튼을 누르면 공룡이 똥을 싸요 💩';
   localStorage.setItem('gacha_session',JSON.stringify({id:currentUser,token}));
-  updateProfile(); updatePity(); renderRank();
+  updateProfile(); updatePity(); renderRank(); renderTapper();
 }
 function logout(){
   me=null; token=null; currentUser=null; dex={};
@@ -430,6 +456,7 @@ function logout(){
   idle.style.display='block';
   idle.innerHTML='<div class="dino-idle">🦖</div>로그인하고 뽑아보세요';
   document.getElementById('pity').textContent='';
+  renderTapper();
   localStorage.removeItem('gacha_session');
 }
 // 서버에 진행상황 저장
@@ -438,9 +465,54 @@ async function saveProgress(){
   const {error}=await sb.rpc('save_progress',{
     p_id:currentUser, p_token:token, p_dex:me.dex, p_food:me.food,
     p_last_food_date:me.last_food_date, p_pity:me.pity,
-    p_collect:me.collect, p_collect_at:me.collect_at
+    p_collect:me.collect, p_collect_at:me.collect_at, p_tap_count:me.tap_count||0
   });
   if(error) console.error('저장 실패', error);
+}
+
+/* ================= 먹이 주기 (터치 50번당 먹이 1개) ================= */
+const TAPS_PER_FOOD=50;
+function renderTapper(){
+  const fill=document.getElementById('tapFill'), info=document.getElementById('tapInfo');
+  if(!me){ fill.style.width='0%'; info.textContent='로그인하면 먹이를 줄 수 있어요'; return; }
+  const p=me.tap_count||0;
+  fill.style.width=(p/TAPS_PER_FOOD*100)+'%';
+  info.innerHTML=`<b>${p}</b> / ${TAPS_PER_FOOD} · 남은 <b>${TAPS_PER_FOOD-p}</b>번`;
+}
+function doTap(){
+  if(!currentUser){ document.getElementById('tapInfo').textContent='먼저 로그인하세요'; return; }
+  const btn=document.getElementById('tapBtn');
+  btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');
+  me.tap_count=(me.tap_count||0)+1;
+  if(me.tap_count>=TAPS_PER_FOOD){
+    me.tap_count=0; me.food+=1;
+    updateProfile();
+    const info=document.getElementById('tapInfo');
+    info.innerHTML='🍖 <b>먹이 +1!</b>';
+    playTapReward();
+    saveProgress();                 // 먹이 지급은 바로 저장
+  } else {
+    playTapClick();
+    if(me.tap_count % 10 === 0) saveProgress();  // 10번마다 저장(과도한 저장 방지)
+  }
+  renderTapper();
+}
+function playTapClick(){
+  let ctx; try{ ctx=getCtx(); }catch(e){ return; }
+  const t0=ctx.currentTime, o=ctx.createOscillator(), g=ctx.createGain();
+  o.type='square'; o.frequency.setValueAtTime(600,t0); o.frequency.exponentialRampToValueAtTime(300,t0+0.05);
+  g.gain.setValueAtTime(0.08,t0); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.07);
+  o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+0.08);
+}
+function playTapReward(){
+  let ctx; try{ ctx=getCtx(); }catch(e){ return; }
+  [523,659,784,1047].forEach((f,i)=>{
+    const s=ctx.currentTime+i*0.08, o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,s); g.gain.exponentialRampToValueAtTime(0.2,s+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,s+0.4);
+    o.connect(g).connect(ctx.destination); o.start(s); o.stop(s+0.42);
+  });
 }
 
 function updateProfile(){
@@ -958,6 +1030,7 @@ async function loadGameData(){
   renderRateTable();
   renderRank();
   renderFeed();
+  renderTapper();
   setInterval(renderFeed, 15000);   // 다른 사람 뽑기 소식 주기적 갱신
   idle.innerHTML='<div class="dino-idle">🦖</div>로그인하고 뽑아보세요';
 
