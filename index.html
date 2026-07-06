@@ -621,10 +621,10 @@ function cardTapBonus(f){
   const lv=tierLevelOf(f.tier);
   return tierBonusOf(f.tier) + (GCFG.enh_tap[Math.min(lv,GCFG.enh_tap.length-1)]||0)*enhLevel(f.name);
 }
-// 배치된 카드들의 총 클릭 보너스
+// 배치된 카드들의 총 클릭 보너스 (칸 수까지만 계산 → 옛날 초과 데이터 무시)
 function farmBonus(){
   let b=0;
-  (me.farm||[]).forEach(name=>{ const f=FRIENDS.find(x=>x.name===name); if(f) b+=cardTapBonus(f); });
+  (me.farm||[]).slice(0, farmSlots()).forEach(name=>{ const f=FRIENDS.find(x=>x.name===name); if(f) b+=cardTapBonus(f); });
   return b;
 }
 // 한 번 클릭 = 1 + 보너스
@@ -756,6 +756,7 @@ function placeCard(name){
   if(!Array.isArray(me.farm)) me.farm=[];
   while(me.farm.length<farmSlots()) me.farm.push(null);
   me.farm[pickSlot]=name||null;
+  me.farm=me.farm.slice(0, farmSlots());   // 칸 초과분 정리
   saveProgress(); closePick(); renderFarm(); renderTapper();
 }
 

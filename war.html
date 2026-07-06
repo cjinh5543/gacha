@@ -338,7 +338,7 @@ async function saveDeck(){
 
 /* ===== 전쟁 상대 ===== */
 function deckPowerOf(arr, enhMap){
-  let p=0; (arr||[]).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=cardPower(f.tier, (enhMap&&enhMap[name])||0); }); return p;
+  let p=0; (arr||[]).slice(0, GCFG.farm_cap).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=cardPower(f.tier, (enhMap&&enhMap[name])||0); }); return p;
 }
 let OPPS=[];
 async function loadOpponents(){
