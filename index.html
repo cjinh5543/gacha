@@ -1421,25 +1421,43 @@ function selectEnhance(iid, resultHtml){
     <div class="enh-mat">재료: 같은 등급(${f.tier}) 카드 1장 소모 · 보유 여분 ${fodder}장</div>`}
     <div class="enh-btns">
       <button class="enh-back" onclick="openEnhance()">← 목록</button>
-      ${maxed?'':`<button class="enh-go" ${canGo?'':'disabled'} onclick="doEnhance(${iid})">⚒️ 강화하기</button>`}
+      ${maxed?'':`<button class="enh-go" ${fodder>=1?'':'disabled'} onclick="doEnhance(${iid})">⚒️ 재료 고르고 강화</button>`}
     </div>`;
 }
-function consumeOneFodder(tier, excludeIid){
-  const idx=(me.inventory||[]).findIndex(it=>{ const f=cardByName(it.card); return f && f.tier===tier && it.iid!==excludeIid; });
+function consumeFodderByIid(fodderIid){
+  const idx=(me.inventory||[]).findIndex(it=>it.iid===fodderIid);
   if(idx<0) return false;
-  const usedIid=me.inventory[idx].iid;
   me.inventory.splice(idx,1);
-  // 밭에 배치돼 있던 재료면 밭에서도 제거
-  me.farm=(me.farm||[]).map(x=>x===usedIid?null:x);
+  me.farm=(me.farm||[]).map(x=>x===fodderIid?null:x);
   return true;
 }
-async function doEnhance(iid){
+function openFodderPick(targetIid){
+  const it=invById(targetIid); if(!it) return;
+  const f=cardByName(it.card);
+  const grid=document.getElementById('enhGrid'); grid.innerHTML='';
+  document.getElementById('enhPick').style.display='block';
+  document.getElementById('enhPanel').style.display='none';
+  const cand=sortedInventory().filter(x=>{ const cf=cardByName(x.card); return cf && cf.tier===f.tier && x.iid!==targetIid; });
+  grid.insertAdjacentHTML('beforebegin','');
+  if(cand.length===0){ grid.innerHTML='<div class="rank-empty" style="padding:20px">같은 등급 재료 카드가 없어요</div>'; document.getElementById('enhOverlay').classList.add('on'); return; }
+  cand.forEach(x=>{
+    const cf=cardByName(x.card); const t=TIERS[cf.tier]||{color:'#888',glow:'transparent'};
+    const div=document.createElement('div');
+    div.className='dex-card owned'+(x.enh>0?' enhanced-card':''); div.style.cursor='pointer';
+    div.style.setProperty('--tc',t.color); div.style.setProperty('--tg',t.glow);
+    div.innerHTML=`${x.enh>0?`<div class="enh-badge">+${x.enh}</div>`:''}${photoTag(cf,'dex-photo')}<div class="dex-name">${cf.name}</div><div class="dex-tier">${cf.tier}</div><div class="dex-desc">재료로 소모</div>`;
+    div.onclick=()=>doEnhance(targetIid, x.iid);
+    grid.appendChild(div);
+  });
+  document.getElementById('enhOverlay').classList.add('on');
+}
+async function doEnhance(iid, fodderIid){
   const it=invById(iid); if(!it) return;
   const f=cardByName(it.card);
   const lv=it.enh||0;
   if(lv>=GCFG.enh_max) return;
-  if(fodderCountFor(f.tier, iid)<1){ toast('같은 등급 재료 카드가 부족해요'); return; }
-  consumeOneFodder(f.tier, iid);
+  if(!fodderIid){ openFodderPick(iid); return; }   // 재료 미선택 → 재료 고르기
+  if(!consumeFodderByIid(fodderIid)){ toast('재료 카드를 찾을 수 없어요'); return; }
   const success=Math.random()*100 < enhRateFor(lv);
   let resultHtml;
   if(success){ it.enh=lv+1; resultHtml=`<div class="enh-result ok">✨ 강화 성공! +${lv} → +${lv+1}</div>`; }
