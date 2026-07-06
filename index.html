@@ -56,6 +56,21 @@
     color:var(--gray);border-radius:8px;font-family:inherit;font-size:12px;cursor:pointer;}
   /* 랭킹 패널 */
   .rankpanel h4{font-size:12px;color:var(--gray);margin-bottom:10px;font-weight:600;letter-spacing:.5px;}
+  .rank-tabs{display:flex;gap:4px;margin-bottom:10px;}
+  .rtab{flex:1;padding:5px 0;border:1px solid var(--dark);border-radius:7px;background:transparent;color:var(--gray);
+    font-family:inherit;font-weight:700;font-size:11px;cursor:pointer;}
+  .rtab.on{background:linear-gradient(90deg,var(--purple),var(--blue));color:#fff;border-color:transparent;}
+  /* 얼간이들의 왕 */
+  .king-banner{display:flex;align-items:center;gap:12px;width:min(560px,92vw);margin:0 auto 22px;
+    background:linear-gradient(90deg,rgba(255,213,74,.14),rgba(162,91,255,.1));
+    border:1px solid var(--gold);border-radius:16px;padding:14px 18px;box-shadow:0 0 30px -10px var(--gold);}
+  .king-crown{font-size:38px;flex:none;filter:drop-shadow(0 2px 6px rgba(255,213,74,.6));}
+  .king-body{flex:1;min-width:0;}
+  .king-title{font-size:13px;font-weight:800;color:var(--gold);}
+  .king-title span{color:#fff;}
+  .king-msg{font-size:15px;font-weight:700;margin-top:3px;word-break:break-word;}
+  .king-edit{flex:none;padding:8px 14px;border:none;border-radius:999px;background:var(--gold);color:#0d0a1f;
+    font-family:inherit;font-weight:800;font-size:12px;cursor:pointer;}
   .rank-row{display:flex;align-items:center;gap:8px;font-size:12px;margin:6px 0;}
   .rank-row .medal{width:18px;text-align:center;flex:none;font-weight:800;}
   .rank-row .rname{flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -260,6 +275,7 @@
     h1{margin-top:6px;order:1;}
     .sub{order:2;}
     .war-link{order:2;}
+    .king-banner{order:2;width:100%;max-width:420px;}
     .stage{order:3;height:400px;width:min(330px,90vw);}
     #skipBtn{order:3;}
     .pull-btns{order:4;}
@@ -315,7 +331,12 @@
 
   <!-- 랭킹 (별도 패널) -->
   <div class="rankpanel">
-    <h4>🏆 수집도 랭킹</h4>
+    <h4>🏆 랭킹</h4>
+    <div class="rank-tabs">
+      <button class="rtab on" id="rtab-collect" onclick="showRankTab('collect')">수집도</button>
+      <button class="rtab" id="rtab-level" onclick="showRankTab('level')">레벨</button>
+      <button class="rtab" id="rtab-cards" onclick="showRankTab('cards')">카드수</button>
+    </div>
     <div id="rankList"><div class="rank-empty">불러오는 중...</div></div>
   </div>
 </div>
@@ -326,6 +347,16 @@
 <h1>🦖 얼간이 뽑기 🦖</h1>
 <p class="sub">공룡이 똥을 싸면 얼간이가 나옵니다 💩</p>
 <a class="war-link" href="war.html">⚔️ 얼간이 대전쟁 하러 가기</a>
+
+<!-- 얼간이들의 왕 -->
+<div class="king-banner" id="kingBanner" style="display:none">
+  <div class="king-crown">👑</div>
+  <div class="king-body">
+    <div class="king-title">얼간이들의 왕 · <span id="kingNick">-</span></div>
+    <div class="king-msg" id="kingMsg">-</div>
+  </div>
+  <button class="king-edit" id="kingEdit" style="display:none" onclick="editKingMsg()">✏️ 한마디</button>
+</div>
 
 <div class="stage" id="stage">
   <div class="idle" id="idle"><div class="dino-idle">🦖</div>로그인하고 뽑아보세요</div>
@@ -509,6 +540,7 @@ async function applySession(data, isNew){
   idle.innerHTML='<div class="dino-idle">🦖</div>버튼을 누르면 공룡이 똥을 싸요 💩';
   localStorage.setItem('gacha_session',JSON.stringify({id:currentUser,token}));
   updateProfile(); updatePity(); renderRank(); renderTapper(); renderLevel(); renderFarm();
+  loadKing();
 }
 function logout(){
   me=null; token=null; currentUser=null; dex={};
@@ -697,18 +729,47 @@ function updatePity(){
 }
 
 /* ================= 랭킹 (서버에서) ================= */
+let rankTab='collect';
+function showRankTab(tab){
+  rankTab=tab;
+  ['collect','level','cards'].forEach(t=>document.getElementById('rtab-'+t).classList.toggle('on',t===tab));
+  renderRank();
+}
 async function renderRank(){
   const box=document.getElementById('rankList');
-  const {data,error}=await sb.rpc('get_ranking');
+  const medals=['🥇','🥈','🥉','4','5'];
+  let rpc, fmt;
+  if(rankTab==='level'){ rpc='rank_level'; fmt=r=>`Lv.${Math.floor((r.pulls||0)/PULLS_PER_LEVEL)+1}`; }
+  else if(rankTab==='cards'){ rpc='rank_cards'; fmt=r=>`${r.total}장`; }
+  else { rpc='get_ranking'; fmt=r=>`${r.collect}종`; }
+  const {data,error}=await sb.rpc(rpc);
   if(error){ box.innerHTML='<div class="rank-empty">랭킹 불러오기 실패</div>'; return; }
   if(!data || data.length===0){ box.innerHTML='<div class="rank-empty">아직 없음</div>'; return; }
-  const medals=['🥇','🥈','🥉','4','5'];
   box.innerHTML=data.map((r,i)=>
     `<div class="rank-row ${me&&r.nick===me.nick?'me':''}">
        <span class="medal">${medals[i]}</span>
-       <span class="rname">${r.nick}</span>
-       <span class="rnum">${r.collect}종</span>
+       <span class="rname">${escapeHtml(r.nick)}</span>
+       <span class="rnum">${fmt(r)}</span>
      </div>`).join('');
+}
+
+/* ================= 얼간이들의 왕 ================= */
+async function loadKing(){
+  const {data,error}=await sb.rpc('get_king');
+  if(error || !data || !data.nick){ document.getElementById('kingBanner').style.display='none'; return; }
+  document.getElementById('kingBanner').style.display='flex';
+  document.getElementById('kingNick').textContent=data.nick;
+  document.getElementById('kingMsg').textContent=data.msg || '(아직 한마디가 없어요)';
+  // 내가 왕이면 편집 버튼 표시
+  const iAmKing = me && me.nick===data.nick;
+  document.getElementById('kingEdit').style.display = iAmKing ? 'inline-block' : 'none';
+}
+async function editKingMsg(){
+  const msg=prompt('얼간이들의 왕으로서 한마디를 남기세요 (100자 이내)');
+  if(msg==null) return;
+  const {data,error}=await sb.rpc('set_king_msg',{p_id:currentUser,p_token:token,p_msg:msg});
+  if(error || (data && data.error)){ alert((data&&data.error)||'저장 실패'); return; }
+  loadKing();
 }
 
 /* ================= 뽑기 알림 피드 ================= */
@@ -835,7 +896,7 @@ function pull(){
   pullTimers.push(setTimeout(finish,2500));
 
   updateProfile(); updatePity(); renderRank();
-  renderLevel(); renderFarm(); renderTapper();
+  renderLevel(); renderFarm(); renderTapper(); loadKing();
   pushFeed(f).then(renderFeed);
 }
 function skipAnim(){ if(currentSkip) currentSkip(); }
@@ -1009,7 +1070,7 @@ async function pullMulti(n){
   addPulls(n);
   saveProgress();
   updateProfile(); updatePity(); renderRank();
-  renderLevel(); renderFarm(); renderTapper();
+  renderLevel(); renderFarm(); renderTapper(); loadKing();
   // 으이~ 이상 뽑은 것들 알림에 기록
   (async()=>{ for(const f of results){ await pushFeed(f); } renderFeed(); })();
 
@@ -1232,6 +1293,7 @@ async function loadGameData(){
   renderTapper();
   renderLevel();
   renderFarm();
+  loadKing();
   setInterval(renderFeed, 15000);   // 다른 사람 뽑기 소식 주기적 갱신
   idle.innerHTML='<div class="dino-idle">🦖</div>로그인하고 뽑아보세요';
 
