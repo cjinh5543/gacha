@@ -140,6 +140,9 @@
   .spark{position:fixed;width:8px;height:8px;border-radius:50%;pointer-events:none;background:var(--gold);box-shadow:0 0 8px 2px currentColor;}
   .pity{margin-top:12px;font-size:13px;color:var(--gray);text-align:center;min-height:18px;}
   .pity b{color:var(--blue);}
+  #skipBtn{margin-top:10px;padding:8px 20px;border:1px solid var(--dark);border-radius:999px;background:rgba(255,255,255,.06);
+    color:#cfd4e0;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;}
+  #skipBtn:hover{background:rgba(255,255,255,.12);}
 
   /* ===== 연속 뽑기 결과 ===== */
   .multi-modal{width:min(780px,94vw);background:#140f2b;border:1px solid var(--dark);border-radius:20px;padding:24px;}
@@ -258,6 +261,7 @@
     .sub{order:2;}
     .war-link{order:2;}
     .stage{order:3;height:400px;width:min(330px,90vw);}
+    #skipBtn{order:3;}
     .pull-btns{order:4;}
     #pullBtn{order:4;}
     .pity{order:5;}
@@ -326,10 +330,12 @@
 <div class="stage" id="stage">
   <div class="idle" id="idle"><div class="dino-idle">🦖</div>로그인하고 뽑아보세요</div>
 </div>
+<button id="skipBtn" onclick="skipAnim()" style="display:none">⏩ 스킵</button>
 <div class="pull-btns">
   <button class="btn" id="pullBtn" onclick="pull()">🦴 1연차</button>
   <button class="btn small" id="pull5" onclick="pullMulti(5)">🦴 5연차</button>
   <button class="btn small" id="pull10" onclick="pullMulti(10)">🦴 10연차</button>
+  <button class="btn small" id="pull100" onclick="pullMulti(100)">🦴 100연차</button>
 </div>
 <div class="pity" id="pity"></div>
 
@@ -384,7 +390,12 @@
 <!-- 연속 뽑기 결과 오버레이 -->
 <div class="overlay" id="multiOverlay" onclick="if(event.target===this)closeMulti()">
   <div class="multi-modal">
-    <div class="dex-head"><h3 id="multiTitle">연차 결과</h3><button class="close" id="multiClose" onclick="closeMulti()">×</button></div>
+    <div class="dex-head"><h3 id="multiTitle">연차 결과</h3>
+      <div>
+        <button class="close" id="multiSkip" onclick="skipMulti()" style="width:auto;padding:0 12px;margin-right:6px;">⏩ 스킵</button>
+        <button class="close" id="multiClose" onclick="closeMulti()">×</button>
+      </div>
+    </div>
     <div class="multi-dino" id="multiDino">🦖</div>
     <div class="multi-row" id="multiRow"></div>
   </div>
@@ -410,6 +421,7 @@ const stage=document.getElementById('stage'), idle=document.getElementById('idle
 let currentUser=null;   // 로그인한 아이디
 let dex={};             // 현재 유저 도감 {이름:횟수}
 let busy=false;         // 연출 진행 중 잠금
+let pullTimers=[], currentSkip=null;   // 단일 뽑기 연출 스킵용
 
 /* ---- 확률표: 실제 확률(비율 보정) 표시 ---- */
 function renderRateTable(){
@@ -635,6 +647,9 @@ function renderFarm(){
   info.textContent='칸을 눌러 얼간이를 배치하면 클릭당 먹이가 더 올라요.';
 }
 let pickSlot=null;
+function farmPlacedCount(name, excludeIdx){
+  let c=0; (me.farm||[]).forEach((n,idx)=>{ if(idx!==excludeIdx && n===name) c++; }); return c;
+}
 function openPick(i){
   pickSlot=i;
   const grid=document.getElementById('pickGrid'); grid.innerHTML='';
@@ -645,13 +660,17 @@ function openPick(i){
   grid.appendChild(clear);
   let any=false;
   FRIENDS.forEach(f=>{
-    if(!(dex[f.name]>0)) return; any=true;
+    const owned=dex[f.name]||0;
+    if(owned<=0) return; any=true;
+    const remaining=owned - farmPlacedCount(f.name, pickSlot);  // 다른 칸에 쓴 만큼 제외
     const t=TIERS[f.tier]||{color:'#888',glow:'transparent'};
     const div=document.createElement('div');
-    div.className='dex-card owned'; div.style.cursor='pointer';
+    div.className='dex-card owned';
     div.style.setProperty('--tc',t.color); div.style.setProperty('--tg',t.glow);
-    div.innerHTML=`${photoTag(f,'dex-photo')}<div class="dex-name">${f.name}</div><div class="dex-tier">${f.tier}</div><div class="dex-desc">클릭 +${tierBonusOf(f.tier)}</div>`;
-    div.onclick=()=>placeCard(f.name);
+    const canPlace=remaining>0;
+    if(!canPlace){ div.style.opacity='.4'; div.style.cursor='default'; }
+    else { div.style.cursor='pointer'; div.onclick=()=>placeCard(f.name); }
+    div.innerHTML=`${photoTag(f,'dex-photo')}<div class="dex-name">${f.name}</div><div class="dex-tier">${f.tier}</div><div class="dex-desc">보유 ${remaining}/${owned} · 클릭 +${tierBonusOf(f.tier)}</div>`;
     grid.appendChild(div);
   });
   if(!any){ grid.insertAdjacentHTML('beforeend','<div class="rank-empty" style="padding:20px">아직 뽑은 얼간이가 없어요</div>'); }
@@ -782,11 +801,12 @@ function pull(){
   stage.appendChild(poop);
   // 등급별 소리
   playPoopSound(level, maxLevel);
-  // 똥이 착지하면 날파리가 주변을 한 바퀴 (등급 높을수록 많이)
-  setTimeout(()=>spawnFlies(level, t.color), 600);
-  // 3) 날파리가 한 바퀴 돈 뒤, 똥에서 카드가 뿅 솟아오름
-  setTimeout(()=>{
+
+  let revealed=false;
+  const doReveal=()=>{
+    if(revealed) return; revealed=true;
     poop.classList.add('fade');
+    stage.querySelectorAll('.fly').forEach(el=>el.remove());
     const card=document.createElement('div');
     card.className='card spit';
     card.style.setProperty('--tier-color',t.color);
@@ -796,14 +816,29 @@ function pull(){
     sparkle(t.color, level, maxLevel);
     playSplat(level, maxLevel);
     runCardEffect(f, {stage, card, color:t.color, level, name:f.name});
-  },1950);
-  setTimeout(()=>{trex.remove();poop.remove();},2450);
+  };
+  const finish=()=>{
+    trex.remove(); poop.remove();
+    document.getElementById('skipBtn').style.display='none';
+    busy=false; setPullEnabled(true);
+    pullTimers=[];
+  };
+  // 스킵 버튼 준비
+  const skipEl=document.getElementById('skipBtn');
+  skipEl.style.display='inline-block';
+  currentSkip=()=>{ pullTimers.forEach(clearTimeout); pullTimers=[]; doReveal(); finish(); };
+
+  pullTimers=[];
+  pullTimers.push(setTimeout(()=>spawnFlies(level, t.color), 600));
+  pullTimers.push(setTimeout(doReveal,1950));
+  pullTimers.push(setTimeout(()=>{ trex.remove(); poop.remove(); },2450));
+  pullTimers.push(setTimeout(finish,2500));
 
   updateProfile(); updatePity(); renderRank();
   renderLevel(); renderFarm(); renderTapper();
   pushFeed(f).then(renderFeed);
-  setTimeout(()=>{busy=false; setPullEnabled(true);},2500);
 }
+function skipAnim(){ if(currentSkip) currentSkip(); }
 
 /* 날파리가 똥 주변을 한 바퀴 */
 function spawnFlies(level, color){
@@ -943,7 +978,7 @@ function runCardEffect(f, ctx){
 
 /* ================= 연속 뽑기 (5연차 / 10연차) ================= */
 function setPullEnabled(on){
-  [document.getElementById('pullBtn'),document.getElementById('pull5'),document.getElementById('pull10')]
+  [document.getElementById('pullBtn'),document.getElementById('pull5'),document.getElementById('pull10'),document.getElementById('pull100')]
     .forEach(b=>{ if(b) b.disabled=!on; });
 }
 async function pullMulti(n){
@@ -980,21 +1015,48 @@ async function pullMulti(n){
 
   animateMulti(n, results);
 }
+let multiTimers=[], multiSlots=[], multiDone=false, multiMaxLevel=0;
+function revealSlot(s){
+  if(s.revealed) return; s.revealed=true;
+  s.poop.remove();
+  const card=document.createElement('div'); card.className='mcard';
+  card.style.setProperty('--tc',s.t.color); card.style.setProperty('--tg',s.t.glow);
+  card.innerHTML=`${photoTag(s.f,'mphoto')}<div class="mtier">${s.f.tier}</div><div class="mname">${s.f.name}</div>`;
+  card.animate([{transform:'scale(.3) rotateY(90deg)',opacity:0},{transform:'scale(1) rotateY(0)',opacity:1}],
+    {duration:300,easing:'cubic-bezier(.2,.9,.3,1.3)',fill:'both'});
+  s.slot.appendChild(card);
+  if(s.level>=multiMaxLevel-1) sparkleAt(s.slot, s.t.color, s.level);
+  runCardEffect(s.f, {stage:s.slot, card, color:s.t.color, level:s.level, name:s.f.name});
+}
+function finishMulti(){
+  document.getElementById('multiClose').style.visibility='visible';
+  document.getElementById('multiSkip').style.display='none';
+  multiDone=true; busy=false; setPullEnabled(true);
+}
+function skipMulti(){
+  multiTimers.forEach(clearTimeout); multiTimers=[];
+  multiSlots.forEach(s=>{ if(s.poop) s.poop.style.display='none'; revealSlot(s); });
+  finishMulti();
+}
 function animateMulti(n, results){
   const ov=document.getElementById('multiOverlay');
   const row=document.getElementById('multiRow');
   const dino=document.getElementById('multiDino');
   document.getElementById('multiTitle').textContent=`${n}연차 결과`;
   document.getElementById('multiClose').style.visibility='hidden';
+  document.getElementById('multiSkip').style.display='inline-block';
   row.innerHTML=''; ov.classList.add('on');
+  multiTimers=[]; multiSlots=[]; multiDone=false;
 
-  // 티라노가 뿌뿌뿌...직 여러 번
   playBurstSound(n);
   dino.classList.remove('go'); void dino.offsetWidth; dino.classList.add('go');
 
   const tierKeys=Object.keys(TIERS), maxLevel=tierKeys.length-1;
+  multiMaxLevel=maxLevel;
   const slots=[];
-  const STAGGER=Math.max(60, 320/n);        // 개수 많으면 빨리 날아옴
+  // 개수가 많을수록 빠르게
+  const STAGGER=Math.max(12, Math.min(120, Math.round(320/n)));
+  const POP = n>=30 ? 60 : (n>=10 ? 200 : 340);
 
   results.forEach((f,i)=>{
     const t=TIERS[f.tier]||{color:"#888",glow:"transparent"};
@@ -1004,43 +1066,26 @@ function animateMulti(n, results){
     const poop=document.createElement('div'); poop.className='mpoop'; poop.textContent='💩';
     poop.style.filter=`drop-shadow(0 0 ${6+level*8}px ${t.color})`;
     slot.appendChild(poop); row.appendChild(slot);
-    slots.push({slot,poop,f,t,level});
-    // 똥이 위에서 날아와 자리에 진열
+    slots.push({slot,poop,f,t,level,revealed:false});
     poop.animate([
       {transform:'translateY(-180px) scale(.3) rotate(-20deg)',opacity:0},
       {transform:'translateY(0) scale(1) rotate(0)',opacity:1}
-    ],{duration:480,delay:300+i*STAGGER,easing:'cubic-bezier(.2,.8,.3,1.3)',fill:'both'});
+    ],{duration:420,delay:300+i*STAGGER,easing:'cubic-bezier(.2,.8,.3,1.3)',fill:'both'});
   });
+  multiSlots=slots;
 
-  // 다 진열된 뒤 차례대로 터짐
-  const lineupDone = 300 + (n-1)*STAGGER + 480 + 250;
-  const POP=340;
+  const lineupDone = 300 + (n-1)*STAGGER + 420 + 200;
   slots.forEach((s,i)=>{
-    setTimeout(()=>{
-      s.poop.animate([{transform:'scale(1)',opacity:1},{transform:'scale(1.7)',opacity:0}],
-        {duration:220,fill:'forwards'});
-      playReveal(s.level, maxLevel);
-      playSplat(s.level, maxLevel);
-      setTimeout(()=>{
-        s.poop.remove();
-        const card=document.createElement('div'); card.className='mcard';
-        card.style.setProperty('--tc',s.t.color); card.style.setProperty('--tg',s.t.glow);
-        card.innerHTML=`${photoTag(s.f,'mphoto')}<div class="mtier">${s.f.tier}</div><div class="mname">${s.f.name}</div>`;
-        card.animate([{transform:'scale(.3) rotateY(90deg)',opacity:0},{transform:'scale(1) rotateY(0)',opacity:1}],
-          {duration:340,easing:'cubic-bezier(.2,.9,.3,1.3)',fill:'both'});
-        s.slot.appendChild(card);
-        if(s.level>=maxLevel-1) sparkleAt(s.slot, s.t.color, s.level);
-        runCardEffect(s.f, {stage:s.slot, card, color:s.t.color, level:s.level, name:s.f.name});
-      },180);
-    }, lineupDone + i*POP);
+    multiTimers.push(setTimeout(()=>{
+      s.poop.animate([{transform:'scale(1)',opacity:1},{transform:'scale(1.7)',opacity:0}],{duration:200,fill:'forwards'});
+      if(n<=20){ playReveal(s.level, maxLevel); playSplat(s.level, maxLevel); }
+      else if(i%5===0){ playReveal(s.level, maxLevel); }   // 많으면 소리 솎아내기
+      multiTimers.push(setTimeout(()=>revealSlot(s),150));
+    }, lineupDone + i*POP));
   });
 
-  // 끝나면 버튼 다시 활성화 + 닫기 버튼 표시
-  const total = lineupDone + n*POP + 200;
-  setTimeout(()=>{
-    document.getElementById('multiClose').style.visibility='visible';
-    busy=false; setPullEnabled(true);
-  }, total);
+  const total = lineupDone + n*POP + 300;
+  multiTimers.push(setTimeout(finishMulti, total));
 }
 function closeMulti(){ document.getElementById('multiOverlay').classList.remove('on'); }
 

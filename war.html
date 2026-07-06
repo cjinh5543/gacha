@@ -284,6 +284,9 @@ function deckPower(){
   return p;
 }
 let pickSlot=null;
+function deckPlacedCount(name, excludeIdx){
+  let c=0; deck.forEach((n,idx)=>{ if(idx!==excludeIdx && n===name) c++; }); return c;
+}
 function openPick(i){
   pickSlot=i;
   const grid=document.getElementById('pickGrid'); grid.innerHTML='';
@@ -294,12 +297,16 @@ function openPick(i){
   grid.appendChild(clear);
   let any=false;
   CARDS.forEach(c=>{
-    if(!(dex[c.name]>0)) return; any=true;
+    const owned=dex[c.name]||0;
+    if(owned<=0) return; any=true;
+    const remaining=owned - deckPlacedCount(c.name, pickSlot);
     const t=TIERS[c.tier]||{color:'#888'};
     const div=document.createElement('div');
     div.className='pcard'; div.style.setProperty('--tc',t.color);
-    div.innerHTML=`${photoTag({photo:c.photo,name:c.name},'ph')}<div class="nm">${c.name}</div><div class="tr">${c.tier}</div><div class="pw">전투력 ${tierPower(c.tier)}</div>`;
-    div.onclick=()=>placeCard(c.name);
+    const canPlace=remaining>0;
+    if(!canPlace){ div.style.opacity='.4'; div.style.cursor='default'; }
+    else { div.style.cursor='pointer'; div.onclick=()=>placeCard(c.name); }
+    div.innerHTML=`${photoTag({photo:c.photo,name:c.name},'ph')}<div class="nm">${c.name}</div><div class="tr">${c.tier}</div><div class="pw">보유 ${remaining}/${owned} · 전투력 ${tierPower(c.tier)}</div>`;
     grid.appendChild(div);
   });
   if(!any) grid.insertAdjacentHTML('beforeend','<div style="color:var(--gray);padding:20px">아직 뽑은 얼간이가 없어요. 뽑기 사이트에서 먼저 뽑아오세요!</div>');
