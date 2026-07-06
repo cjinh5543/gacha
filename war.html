@@ -161,7 +161,7 @@ const SUPABASE_KEY="sb_publishable_vEcD6gUy63cO8jTEqCfYRw_T90dB4_g";
 const STORY_FN=`${SUPABASE_URL}/functions/v1/war-story`;   // Gemini 스토리 함수
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const PULLS_PER_LEVEL=100;
+let PULLS_PER_LEVEL=100;
 let TIER_POWER=[10,20,35,60,100];   // 노예~킹왕짱 전투력 (서버 설정으로 덮어써짐)
 
 // 랭크 포인트 → 티어
@@ -184,28 +184,39 @@ let dex={};
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),1800); }
 function err(m){ document.getElementById('authErr').textContent=m||''; }
 
-/* 등급 → 전투력 */
-function tierPower(tierName){
+let GCFG={farm_cap:5,enh_power:[10,20,40,60,80],pulls_per_level:100};
+
+/* 등급 → 레벨 인덱스 */
+function tierLevelOf(tierName){
   const keys=Object.keys(TIERS), idx=keys.indexOf(tierName);
-  const level=(keys.length-1)-(idx<0?0:idx);
-  return TIER_POWER[Math.min(level,TIER_POWER.length-1)];
+  return (keys.length-1)-(idx<0?0:idx);
 }
+function tierPower(tierName){ return TIER_POWER[Math.min(tierLevelOf(tierName),TIER_POWER.length-1)]; }
+// 카드 전투력 = 기본 + 강화(등급별 증가 × 강화레벨)
+function cardPower(tier, enhLv){
+  const lv=tierLevelOf(tier);
+  return tierPower(tier) + (GCFG.enh_power[Math.min(lv,GCFG.enh_power.length-1)]||0)*(enhLv||0);
+}
+function myEnh(name){ return (me && me.enhance && me.enhance[name]) || 0; }
 function myLevel(){ return Math.floor((me.pulls||0)/PULLS_PER_LEVEL)+1; }
-function deckSlots(){ return myLevel(); }   // 레벨 = 배치 칸 수
+function deckSlots(){ return Math.min(myLevel(), GCFG.farm_cap); }   // 최대 5칸
 function photoTag(f,cls){
   return f.photo.startsWith('http') ? `<img class="${cls}" src="${f.photo}" alt="">` : `<div class="${cls}">${f.photo}</div>`;
 }
 
 /* ===== 데이터 로드 ===== */
 async function loadCards(){
-  const [{data:tiers},{data:cards},{data:cfg}]=await Promise.all([
+  const [{data:tiers},{data:cards},{data:cfg},{data:gc}]=await Promise.all([
     sb.from('tiers').select('*').order('sort_order'),
     sb.from('cards').select('*'),
-    sb.from('war_config').select('tier_power').eq('id',1).single()
+    sb.from('war_config').select('tier_power').eq('id',1).single(),
+    sb.from('game_config').select('farm_cap,enh_power,pulls_per_level').eq('id',1).single()
   ]);
   TIERS={}; (tiers||[]).forEach(t=>TIERS[t.name]={color:t.color});
   CARDS=cards||[];
   if(cfg && Array.isArray(cfg.tier_power)) TIER_POWER=cfg.tier_power;
+  if(gc){ if(gc.farm_cap) GCFG.farm_cap=gc.farm_cap; if(Array.isArray(gc.enh_power)) GCFG.enh_power=gc.enh_power;
+    if(gc.pulls_per_level){ GCFG.pulls_per_level=gc.pulls_per_level; PULLS_PER_LEVEL=gc.pulls_per_level; } }
 }
 
 /* ===== 로그인 ===== */
@@ -280,7 +291,7 @@ function renderDeck(){
 }
 function deckPower(){
   let p=0;
-  deck.slice(0,deckSlots()).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=tierPower(f.tier); });
+  deck.slice(0,deckSlots()).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=cardPower(f.tier, myEnh(name)); });
   return p;
 }
 let pickSlot=null;
@@ -306,7 +317,7 @@ function openPick(i){
     const canPlace=remaining>0;
     if(!canPlace){ div.style.opacity='.4'; div.style.cursor='default'; }
     else { div.style.cursor='pointer'; div.onclick=()=>placeCard(c.name); }
-    div.innerHTML=`${photoTag({photo:c.photo,name:c.name},'ph')}<div class="nm">${c.name}</div><div class="tr">${c.tier}</div><div class="pw">보유 ${remaining}/${owned} · 전투력 ${tierPower(c.tier)}</div>`;
+    div.innerHTML=`${photoTag({photo:c.photo,name:c.name},'ph')}<div class="nm">${c.name}</div><div class="tr">${c.tier}</div><div class="pw">보유 ${remaining}/${owned} · 전투력 ${cardPower(c.tier, myEnh(c.name))}${myEnh(c.name)>0?` (+${myEnh(c.name)}강)`:''}</div>`;
     grid.appendChild(div);
   });
   if(!any) grid.insertAdjacentHTML('beforeend','<div style="color:var(--gray);padding:20px">아직 뽑은 얼간이가 없어요. 뽑기 사이트에서 먼저 뽑아오세요!</div>');
@@ -326,8 +337,8 @@ async function saveDeck(){
 }
 
 /* ===== 전쟁 상대 ===== */
-function deckPowerOf(arr){
-  let p=0; (arr||[]).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=tierPower(f.tier); }); return p;
+function deckPowerOf(arr, enhMap){
+  let p=0; (arr||[]).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=cardPower(f.tier, (enhMap&&enhMap[name])||0); }); return p;
 }
 let OPPS=[];
 async function loadOpponents(){
@@ -338,7 +349,7 @@ async function loadOpponents(){
   if(OPPS.length===0){ box.innerHTML='<div class="opp-empty">아직 부대를 저장한 다른 유저가 없어요. 친구가 부대를 저장하면 여기 나타나요!</div>'; return; }
   box.innerHTML='';
   OPPS.forEach((o,i)=>{
-    const lv=Math.floor((o.pulls||0)/PULLS_PER_LEVEL)+1, pow=deckPowerOf(o.war_deck);
+    const lv=Math.floor((o.pulls||0)/PULLS_PER_LEVEL)+1, pow=deckPowerOf(o.war_deck, o.enhance);
     const rankLabel = (o.rp!=null) ? (()=>{ const rt=rankTierOf(o.rp); return `<span style="color:${rt.color}">${rt.icon} ${rt.name} ${o.rp}</span> · `; })() : '';
     const row=document.createElement('div'); row.className='opp';
     row.innerHTML=`<div><div class="onm">${escapeHtml(o.nick)}</div><div class="olv">${rankLabel}Lv.${lv}</div></div>
@@ -352,7 +363,7 @@ async function loadOpponents(){
 }
 /* ===== 전투 ===== */
 function rollBattle(o){
-  const myPow=deckPower(), oppPow=deckPowerOf(o.war_deck);
+  const myPow=deckPower(), oppPow=deckPowerOf(o.war_deck, o.enhance);
   const myRoll=myPow*(0.7+Math.random()*0.6), oppRoll=oppPow*(0.7+Math.random()*0.6);
   return {myPow, oppPow, win: myRoll>=oppRoll};
 }

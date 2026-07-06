@@ -71,6 +71,28 @@
   .king-msg{font-size:15px;font-weight:700;margin-top:3px;word-break:break-word;}
   .king-edit{flex:none;padding:8px 14px;border:none;border-radius:999px;background:var(--gold);color:#0d0a1f;
     font-family:inherit;font-weight:800;font-size:12px;cursor:pointer;}
+  /* 강화소 */
+  .enh-badge{display:inline-block;font-size:11px;font-weight:800;color:#0d0a1f;background:var(--gold);
+    border-radius:999px;padding:1px 7px;position:absolute;top:6px;left:6px;}
+  .enh-detail{text-align:center;}
+  .enh-photo{width:130px;height:130px;border-radius:50%;object-fit:cover;border:4px solid var(--tc,#666);
+    background:#222;display:flex;align-items:center;justify-content:center;font-size:56px;margin:0 auto 10px;box-shadow:0 0 30px var(--tg);}
+  .enh-name{font-size:22px;font-weight:900;}
+  .enh-lv{font-size:15px;font-weight:800;color:var(--gold);margin:6px 0 14px;}
+  .enh-stats{display:flex;justify-content:center;gap:24px;margin-bottom:14px;font-size:13px;}
+  .enh-stats .s b{color:var(--gold);font-size:16px;}
+  .enh-arrow{color:var(--gray);}
+  .enh-rate{font-size:14px;margin-bottom:6px;}
+  .enh-rate b{color:#5bd97a;}
+  .enh-warn{font-size:12px;color:var(--red);margin-bottom:12px;min-height:16px;}
+  .enh-mat{font-size:12px;color:var(--gray);margin-bottom:14px;}
+  .enh-btns{display:flex;gap:8px;justify-content:center;}
+  .enh-btns button{padding:12px 22px;border:none;border-radius:10px;font-family:inherit;font-weight:800;font-size:14px;cursor:pointer;}
+  .enh-go{background:linear-gradient(90deg,#ff8a3a,#ff5b5b);color:#fff;}
+  .enh-go:disabled{opacity:.4;cursor:default;}
+  .enh-back{background:#2a2e42;color:#cfd4e0;}
+  .enh-result{font-size:20px;font-weight:900;margin:12px 0;min-height:26px;}
+  .enh-result.ok{color:#5bd97a;} .enh-result.no{color:var(--red);}
   .rank-row{display:flex;align-items:center;gap:8px;font-size:12px;margin:6px 0;}
   .rank-row .medal{width:18px;text-align:center;flex:none;font-weight:800;}
   .rank-row .rname{flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -325,6 +347,7 @@
       <div class="pcount" id="pCount">수집도 0 / 0</div>
       <div class="pfood" id="pFood">🍖 먹이 0개</div>
       <button class="p-dex" onclick="openDex()">📖 도감 열기</button>
+      <button class="p-dex" style="margin-top:7px;background:linear-gradient(90deg,#ff8a3a,#ff5b5b)" onclick="openEnhance()">⚒️ 강화소</button>
       <button class="p-logout" onclick="logout()">로그아웃</button>
     </div>
   </div>
@@ -382,6 +405,18 @@
 <!-- 카드 상세 (도감에서 클릭) -->
 <div class="overlay" id="cardDetailOverlay" onclick="if(event.target===this)closeCardDetail()">
   <div class="card-detail" id="cardDetail"></div>
+</div>
+
+<!-- 강화소 -->
+<div class="overlay" id="enhOverlay" onclick="if(event.target===this)closeEnhance()">
+  <div class="dex-modal">
+    <div class="dex-head"><h3>⚒️ 강화소</h3><button class="close" onclick="closeEnhance()">×</button></div>
+    <div id="enhPick">
+      <p style="font-size:12px;color:var(--gray);margin-bottom:12px;">강화할 얼간이를 고르세요. 같은 등급의 다른 카드를 재료로 소모해요.</p>
+      <div class="dex-grid" id="enhGrid"></div>
+    </div>
+    <div id="enhPanel" style="display:none;"></div>
+  </div>
 </div>
 
 <!-- 오른쪽 컬럼 (먹이 주기 + 뽑기 소식) -->
@@ -528,6 +563,7 @@ async function applySession(data, isNew){
   if(me.tap_count==null) me.tap_count=0;
   if(me.pulls==null) me.pulls=0;
   if(!Array.isArray(me.farm)) me.farm=[];
+  if(!me.enhance || typeof me.enhance!=='object') me.enhance={};
   dex=me.dex||{};
   // 밀린 먹이 지급 후 서버에 반영
   if(grantFood()) await saveProgress();
@@ -567,22 +603,28 @@ async function saveProgress(){
 }
 
 /* ================= 레벨 & 밭(농사) ================= */
-const PULLS_PER_LEVEL=100;                 // 뽑기 100번당 레벨업
-const TIER_BONUS=[1,2,3,4,5];              // 낮은 등급→높은 등급: 노예1 … 킹왕짱5 (level 기준)
-function myLevel(){ return Math.floor((me.pulls||0)/PULLS_PER_LEVEL)+1; }
-function farmSlots(){ return myLevel(); }  // 레벨 1 = 1칸, 레벨마다 +1칸
-function tierBonusOf(tierName){
+let GCFG={farm_cap:5,pulls_per_level:100,tap_per_food:50,
+  enh_tap:[2,4,8,12,16],enh_power:[10,20,40,60,80],
+  enh_base_rate:80,enh_rate_step:7,enh_max:10,enh_downgrade_from:6};
+let PULLS_PER_LEVEL=100;                    // 설정에서 덮어써짐
+const TIER_BONUS=[1,2,3,4,5];              // 기본 클릭 보너스 (강화 전)
+function tierLevelOf(tierName){
   const keys=Object.keys(TIERS), idx=keys.indexOf(tierName);
-  const level=(keys.length-1)-(idx<0?0:idx);        // 0(노예)~최대(킹왕짱)
-  return TIER_BONUS[Math.min(level,TIER_BONUS.length-1)];
+  return (keys.length-1)-(idx<0?0:idx);     // 0(노예)~최대(킹왕짱)
+}
+function enhLevel(name){ return (me && me.enhance && me.enhance[name]) || 0; }
+function myLevel(){ return Math.floor((me.pulls||0)/PULLS_PER_LEVEL)+1; }
+function farmSlots(){ return Math.min(myLevel(), GCFG.farm_cap); }  // 최대 5칸
+function tierBonusOf(tierName){ return TIER_BONUS[Math.min(tierLevelOf(tierName),TIER_BONUS.length-1)]; }
+// 카드 한 장의 클릭 보너스 = 기본 + 강화(등급별 증가량 × 강화레벨)
+function cardTapBonus(f){
+  const lv=tierLevelOf(f.tier);
+  return tierBonusOf(f.tier) + (GCFG.enh_tap[Math.min(lv,GCFG.enh_tap.length-1)]||0)*enhLevel(f.name);
 }
 // 배치된 카드들의 총 클릭 보너스
 function farmBonus(){
   let b=0;
-  (me.farm||[]).forEach(name=>{
-    const f=FRIENDS.find(x=>x.name===name);
-    if(f) b+=tierBonusOf(f.tier);
-  });
+  (me.farm||[]).forEach(name=>{ const f=FRIENDS.find(x=>x.name===name); if(f) b+=cardTapBonus(f); });
   return b;
 }
 // 한 번 클릭 = 1 + 보너스
@@ -597,14 +639,15 @@ function addPulls(n){
 }
 function showLevelUp(lv){
   const el=document.getElementById('levelUp');
-  el.innerHTML=`🎉 레벨 <b>${lv}</b> 달성! 밭이 <b>${lv}칸</b>으로 늘었어요`;
+  const slots=Math.min(lv,GCFG.farm_cap);
+  el.innerHTML=`🎉 레벨 <b>${lv}</b> 달성! 밭이 <b>${slots}칸</b>이에요`;
   el.classList.add('on');
   setTimeout(()=>el.classList.remove('on'),3500);
   renderLevel(); renderFarm();
 }
 
-/* ================= 먹이 주기 (터치 50번당 먹이 1개) ================= */
-const TAPS_PER_FOOD=50;
+/* ================= 먹이 주기 ================= */
+let TAPS_PER_FOOD=50;   // 설정에서 덮어써짐
 function renderTapper(){
   const fill=document.getElementById('tapFill'), info=document.getElementById('tapInfo');
   if(!me){ fill.style.width='0%'; info.textContent='로그인하면 먹이를 줄 수 있어요'; return; }
@@ -1260,6 +1303,98 @@ function showCardDetail(f, got){
 }
 function closeCardDetail(){ document.getElementById('cardDetailOverlay').classList.remove('on'); }
 
+/* ================= 강화소 ================= */
+function enhTapGain(tier){ const lv=tierLevelOf(tier); return GCFG.enh_tap[Math.min(lv,GCFG.enh_tap.length-1)]||0; }
+function enhPowerGain(tier){ const lv=tierLevelOf(tier); return GCFG.enh_power[Math.min(lv,GCFG.enh_power.length-1)]||0; }
+function enhRate(level){ return Math.max(5, GCFG.enh_base_rate - GCFG.enh_rate_step*level); }
+function fodderAvailable(name, tier){
+  let total=0; FRIENDS.forEach(f=>{ if(f.tier===tier) total+=dex[f.name]||0; });
+  return total - 1;   // 강화 대상 1장은 보존
+}
+function openEnhance(){
+  document.getElementById('enhPanel').style.display='none';
+  document.getElementById('enhPick').style.display='block';
+  const grid=document.getElementById('enhGrid'); grid.innerHTML='';
+  let any=false;
+  FRIENDS.forEach(f=>{
+    if(!(dex[f.name]>0)) return; any=true;
+    const t=TIERS[f.tier]||{color:'#888',glow:'transparent'};
+    const lv=enhLevel(f.name);
+    const div=document.createElement('div');
+    div.className='dex-card owned'; div.style.cursor='pointer';
+    div.style.setProperty('--tc',t.color); div.style.setProperty('--tg',t.glow);
+    div.innerHTML=`${lv>0?`<div class="enh-badge">+${lv}</div>`:''}${photoTag(f,'dex-photo')}<div class="dex-name">${f.name}</div><div class="dex-tier">${f.tier}</div><div class="dex-desc">보유 ${dex[f.name]}장</div>`;
+    div.onclick=()=>selectEnhance(f.name);
+    grid.appendChild(div);
+  });
+  if(!any) grid.innerHTML='<div class="rank-empty" style="padding:20px">강화할 얼간이가 없어요</div>';
+  document.getElementById('enhOverlay').classList.add('on');
+}
+function selectEnhance(name, resultHtml){
+  const f=FRIENDS.find(x=>x.name===name);
+  const t=TIERS[f.tier]||{color:'#888',glow:'transparent'};
+  const lv=enhLevel(name), maxed=lv>=GCFG.enh_max;
+  const curTap=tierBonusOf(f.tier)+enhTapGain(f.tier)*lv;
+  const nextTap=tierBonusOf(f.tier)+enhTapGain(f.tier)*(lv+1);
+  const fodder=fodderAvailable(name,f.tier);
+  const rate=enhRate(lv);
+  const willDrop = lv>=GCFG.enh_downgrade_from;
+  const canGo = !maxed && fodder>=1;
+  const panel=document.getElementById('enhPanel');
+  document.getElementById('enhPick').style.display='none';
+  panel.style.display='block';
+  panel.style.setProperty('--tc',t.color); panel.style.setProperty('--tg',t.glow);
+  panel.className='enh-detail';
+  panel.innerHTML=`
+    ${resultHtml||'<div class="enh-result">&nbsp;</div>'}
+    ${photoTag(f,'enh-photo')}
+    <div class="enh-name">${f.name}</div>
+    <div class="enh-lv">강화 +${lv} ${maxed?'(최대)':''}</div>
+    <div class="enh-stats">
+      <div class="s">터치 보너스<br><b>+${curTap}</b> ${maxed?'':`<span class="enh-arrow">→</span> +${nextTap}`}</div>
+    </div>
+    ${maxed?'' : `<div class="enh-rate">성공 확률 <b>${rate}%</b></div>
+    <div class="enh-warn">${willDrop?'⚠️ 실패 시 강화 단계가 1 떨어져요':''}</div>
+    <div class="enh-mat">재료: 같은 등급(${f.tier}) 카드 1장 소모 · 보유 여분 ${fodder}장</div>`}
+    <div class="enh-btns">
+      <button class="enh-back" onclick="openEnhance()">← 목록</button>
+      ${maxed?'':`<button class="enh-go" ${canGo?'':'disabled'} onclick="doEnhance('${name.replace(/'/g,"\\'")}')">⚒️ 강화하기</button>`}
+    </div>`;
+}
+function consumeOneFodder(name, tier){
+  let cand=FRIENDS.filter(f=>f.tier===tier && f.name!==name && (dex[f.name]||0)>0);
+  if(cand.length===0 && (dex[name]||0)>1) cand=[FRIENDS.find(f=>f.name===name)];
+  if(cand.length===0) return false;
+  const p=cand[0]; dex[p.name]-=1; if(dex[p.name]<=0) delete dex[p.name];
+  return true;
+}
+async function doEnhance(name){
+  const f=FRIENDS.find(x=>x.name===name);
+  const lv=enhLevel(name);
+  if(lv>=GCFG.enh_max){ return; }
+  if(fodderAvailable(name,f.tier)<1){ toast('같은 등급 재료 카드가 부족해요'); return; }
+  consumeOneFodder(name, f.tier);
+  const success=Math.random()*100 < enhRate(lv);
+  let resultHtml;
+  if(success){
+    me.enhance[name]=lv+1;
+    resultHtml=`<div class="enh-result ok">✨ 강화 성공! +${lv} → +${lv+1}</div>`;
+  } else {
+    if(lv>=GCFG.enh_downgrade_from){ me.enhance[name]=Math.max(0,lv-1); resultHtml=`<div class="enh-result no">💥 실패… +${lv} → +${lv-1}</div>`; }
+    else { resultHtml=`<div class="enh-result no">💢 강화 실패 (단계 유지)</div>`; }
+  }
+  me.dex=dex;
+  await saveEnhance();
+  updateProfile(); renderFarm(); renderTapper();
+  selectEnhance(name, resultHtml);   // 결과 표시하며 패널 갱신
+}
+async function saveEnhance(){
+  if(!currentUser) return;
+  const {error}=await sb.rpc('save_enhance',{p_id:currentUser,p_token:token,p_enhance:me.enhance,p_dex:dex});
+  if(error) console.error('강화 저장 실패', error);
+}
+function closeEnhance(){ document.getElementById('enhOverlay').classList.remove('on'); }
+
 /* ================= 서버에서 카드/등급 불러오기 ================= */
 async function loadGameData(){
   const [{data:tiers,error:e1},{data:cards,error:e2}] = await Promise.all([
@@ -1274,6 +1409,12 @@ async function loadGameData(){
   HIGH_TIERS = tiers.slice(0,3).map(t=>t.name); // 위쪽 3개 = 으이~ 이상
 
   FRIENDS = cards.map(c=>({ name:c.name, photo:c.photo, desc:c.description, tier:c.tier, effect:c.effect||null }));
+
+  // 게임 밸런스 설정 로드
+  try{
+    const {data:g}=await sb.from('game_config').select('*').eq('id',1).single();
+    if(g){ GCFG=Object.assign(GCFG,g); PULLS_PER_LEVEL=GCFG.pulls_per_level||100; TAPS_PER_FOOD=GCFG.tap_per_food||50; }
+  }catch(e){ /* 설정 없으면 기본값 사용 */ }
 }
 
 /* ================= 시작 ================= */
