@@ -44,6 +44,9 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:30px;}
   .slot:hover{border-color:var(--red);}
   .slot.filled{border-style:solid;border-color:var(--sc,#666);box-shadow:0 0 14px -4px var(--sc);}
+  .slot.enhanced,.pcard.enhanced{box-shadow:0 0 0 2px var(--gold),0 0 14px -3px var(--gold)!important;}
+  .eb{position:absolute;top:3px;left:5px;font-size:11px;font-weight:800;color:#0d0a1f;background:var(--gold);border-radius:999px;padding:0 6px;z-index:2;}
+  .pcard{position:relative;}
   .slot img{width:70%;height:70%;border-radius:50%;object-fit:cover;}
   .slot .nm{font-size:10px;font-weight:700;margin-top:3px;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .slot .pw{position:absolute;top:3px;right:5px;font-size:10px;font-weight:800;color:var(--red);}
@@ -200,6 +203,17 @@ function cardPower(tier, enhLv){
 function myEnh(name){ return (me && me.enhance && me.enhance[name]) || 0; }
 function myLevel(){ return Math.floor((me.pulls||0)/PULLS_PER_LEVEL)+1; }
 function deckSlots(){ return Math.min(myLevel(), GCFG.farm_cap); }   // 최대 5칸
+function invById(iid, inv){ return (inv||me.inventory||[]).find(it=>it.iid===iid); }
+function cardByName(n){ return CARDS.find(c=>c.name===n); }
+function itemPower(it){ const f=cardByName(it.card); return f?cardPower(f.tier, it.enh||0):0; }
+function sortedInv(){
+  return (me.inventory||[]).slice().sort((a,b)=>{
+    const fa=cardByName(a.card),fb=cardByName(b.card);
+    const la=fa?tierLevelOf(fa.tier):-1, lb=fb?tierLevelOf(fb.tier):-1;
+    if(lb!==la) return lb-la; if((b.enh||0)!==(a.enh||0)) return (b.enh||0)-(a.enh||0);
+    return a.card<b.card?-1:1;
+  });
+}
 function photoTag(f,cls){
   return f.photo.startsWith('http') ? `<img class="${cls}" src="${f.photo}" alt="">` : `<div class="${cls}">${f.photo}</div>`;
 }
@@ -232,6 +246,7 @@ async function login(){
 function startSession(data){
   me=data; token=data.token; currentUser=data.id;
   dex=data.dex||{};
+  if(!Array.isArray(me.inventory)) me.inventory=[];
   deck=[];
   err(''); 
   localStorage.setItem('war_session',JSON.stringify({id:currentUser,token}));
@@ -259,7 +274,7 @@ function renderRank(){
 async function loadDeck(){
   const {data,error}=await sb.rpc('get_war_deck',{p_id:currentUser,p_token:token});
   if(!error && data && !data.error){
-    if(Array.isArray(data.deck)){ deck=data.deck; renderDeck(); }
+    if(Array.isArray(data.deck)){ deck=data.deck.map(x=>typeof x==='number'?x:null); renderDeck(); }
     if(data.rp!=null){ me.rp=data.rp; renderRank(); }
   }
 }
@@ -276,13 +291,13 @@ function renderDeck(){
   const slots=deckSlots();
   document.getElementById('deckHint').textContent=`현재 레벨 ${myLevel()} · 배치 칸 ${slots}개. 칸을 눌러 얼간이를 배치하세요.`;
   for(let i=0;i<slots;i++){
-    const name=deck[i], f=name?CARDS.find(c=>c.name===name):null;
+    const it=invById(deck[i]), f=it?cardByName(it.card):null;
     const cell=document.createElement('div');
-    cell.className='slot'+(f?' filled':'');
+    cell.className='slot'+(f?' filled':'')+(f&&it.enh>0?' enhanced':'');
     if(f){
       const t=TIERS[f.tier]||{color:'#888'};
       cell.style.setProperty('--sc',t.color);
-      cell.innerHTML=`${photoTag(f,'')}<div class="nm">${f.name}</div><span class="pw">${tierPower(f.tier)}</span>`;
+      cell.innerHTML=`${it.enh>0?`<span class="eb">+${it.enh}</span>`:''}${photoTag(f,'')}<div class="nm">${f.name}</div><span class="pw">${itemPower(it)}</span>`;
     } else cell.innerHTML=`<span class="plus">＋</span>`;
     cell.onclick=()=>openPick(i);
     grid.appendChild(cell);
@@ -290,14 +305,9 @@ function renderDeck(){
   document.getElementById('deckPower').textContent=deckPower();
 }
 function deckPower(){
-  let p=0;
-  deck.slice(0,deckSlots()).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=cardPower(f.tier, myEnh(name)); });
-  return p;
+  let p=0; deck.slice(0,deckSlots()).forEach(iid=>{ const it=invById(iid); if(it) p+=itemPower(it); }); return p;
 }
 let pickSlot=null;
-function deckPlacedCount(name, excludeIdx){
-  let c=0; deck.forEach((n,idx)=>{ if(idx!==excludeIdx && n===name) c++; }); return c;
-}
 function openPick(i){
   pickSlot=i;
   const grid=document.getElementById('pickGrid'); grid.innerHTML='';
@@ -306,27 +316,25 @@ function openPick(i){
   clear.innerHTML=`<div class="ph">🚫</div><div class="nm">비우기</div>`;
   clear.onclick=()=>placeCard(null);
   grid.appendChild(clear);
+  const used=new Set(deck.filter((x,idx)=>idx!==pickSlot && x!=null));
   let any=false;
-  CARDS.forEach(c=>{
-    const owned=dex[c.name]||0;
-    if(owned<=0) return; any=true;
-    const remaining=owned - deckPlacedCount(c.name, pickSlot);
-    const t=TIERS[c.tier]||{color:'#888'};
+  sortedInv().forEach(it=>{
+    const f=cardByName(it.card); if(!f || used.has(it.iid)) return; any=true;
+    const t=TIERS[f.tier]||{color:'#888'};
     const div=document.createElement('div');
-    div.className='pcard'; div.style.setProperty('--tc',t.color);
-    const canPlace=remaining>0;
-    if(!canPlace){ div.style.opacity='.4'; div.style.cursor='default'; }
-    else { div.style.cursor='pointer'; div.onclick=()=>placeCard(c.name); }
-    div.innerHTML=`${photoTag({photo:c.photo,name:c.name},'ph')}<div class="nm">${c.name}</div><div class="tr">${c.tier}</div><div class="pw">보유 ${remaining}/${owned} · 전투력 ${cardPower(c.tier, myEnh(c.name))}${myEnh(c.name)>0?` (+${myEnh(c.name)}강)`:''}</div>`;
+    div.className='pcard'+(it.enh>0?' enhanced':''); div.style.setProperty('--tc',t.color); div.style.cursor='pointer';
+    div.innerHTML=`${it.enh>0?`<span class="eb">+${it.enh}</span>`:''}${photoTag(f,'ph')}<div class="nm">${f.name}</div><div class="tr">${f.tier}</div><div class="pw">전투력 ${itemPower(it)}</div>`;
+    div.onclick=()=>placeCard(it.iid);
     grid.appendChild(div);
   });
-  if(!any) grid.insertAdjacentHTML('beforeend','<div style="color:var(--gray);padding:20px">아직 뽑은 얼간이가 없어요. 뽑기 사이트에서 먼저 뽑아오세요!</div>');
+  if(!any) grid.insertAdjacentHTML('beforeend','<div style="color:var(--gray);padding:20px">배치할 얼간이가 없어요. 뽑기 사이트에서 먼저 뽑아오세요!</div>');
   document.getElementById('pickOverlay').classList.add('on');
 }
 function closePick(){ document.getElementById('pickOverlay').classList.remove('on'); }
-function placeCard(name){
+function placeCard(iid){
   while(deck.length<deckSlots()) deck.push(null);
-  deck[pickSlot]=name||null;
+  if(iid!=null) deck=deck.map(x=>x===iid?null:x);
+  deck[pickSlot]=iid==null?null:iid;
   closePick(); renderDeck();
 }
 async function saveDeck(){
@@ -337,8 +345,8 @@ async function saveDeck(){
 }
 
 /* ===== 전쟁 상대 ===== */
-function deckPowerOf(arr, enhMap){
-  let p=0; (arr||[]).slice(0, GCFG.farm_cap).forEach(name=>{ const f=CARDS.find(c=>c.name===name); if(f) p+=cardPower(f.tier, (enhMap&&enhMap[name])||0); }); return p;
+function deckPowerOf(arr, inv){
+  let p=0; (arr||[]).slice(0, GCFG.farm_cap).forEach(iid=>{ const it=invById(iid, inv); if(it){ const f=cardByName(it.card); if(f) p+=cardPower(f.tier, it.enh||0); } }); return p;
 }
 let OPPS=[];
 async function loadOpponents(){
@@ -349,7 +357,7 @@ async function loadOpponents(){
   if(OPPS.length===0){ box.innerHTML='<div class="opp-empty">아직 부대를 저장한 다른 유저가 없어요. 친구가 부대를 저장하면 여기 나타나요!</div>'; return; }
   box.innerHTML='';
   OPPS.forEach((o,i)=>{
-    const lv=Math.floor((o.pulls||0)/PULLS_PER_LEVEL)+1, pow=deckPowerOf(o.war_deck, o.enhance);
+    const lv=Math.floor((o.pulls||0)/PULLS_PER_LEVEL)+1, pow=deckPowerOf(o.war_deck, o.inventory);
     const rankLabel = (o.rp!=null) ? (()=>{ const rt=rankTierOf(o.rp); return `<span style="color:${rt.color}">${rt.icon} ${rt.name} ${o.rp}</span> · `; })() : '';
     const row=document.createElement('div'); row.className='opp';
     row.innerHTML=`<div><div class="onm">${escapeHtml(o.nick)}</div><div class="olv">${rankLabel}Lv.${lv}</div></div>
@@ -363,7 +371,7 @@ async function loadOpponents(){
 }
 /* ===== 전투 ===== */
 function rollBattle(o){
-  const myPow=deckPower(), oppPow=deckPowerOf(o.war_deck, o.enhance);
+  const myPow=deckPower(), oppPow=deckPowerOf(o.war_deck, o.inventory);
   const myRoll=myPow*(0.7+Math.random()*0.6), oppRoll=oppPow*(0.7+Math.random()*0.6);
   return {myPow, oppPow, win: myRoll>=oppRoll};
 }
