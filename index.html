@@ -95,6 +95,17 @@
   .enh-result.ok{color:#5bd97a;} .enh-result.no{color:var(--red);}
   /* 강화 구분 표시 */
   .enhanced-card{box-shadow:0 0 0 2px var(--gold), 0 0 18px -4px var(--gold)!important;}
+  /* 강화 단계별 테두리 */
+  .enh-t1{box-shadow:0 0 0 2px #cfd4e0, 0 0 12px -3px #cfd4e0 !important;}          /* 1~3 은색 */
+  .enh-t2{box-shadow:0 0 0 2px var(--gold), 0 0 16px -3px var(--gold) !important;} /* 4~6 금색 */
+  .enh-t3{box-shadow:0 0 0 3px #b06bff, 0 0 22px -2px #b06bff !important;}          /* 7~9 보라광 */
+  .enh-t4{border:0;animation:enhRainbow 2.4s linear infinite;}                     /* 10 무지개 */
+  @keyframes enhRainbow{
+    0%{box-shadow:0 0 0 3px #ff5b5b,0 0 26px -2px #ff5b5b;}
+    33%{box-shadow:0 0 0 3px #ffd54a,0 0 26px -2px #ffd54a;}
+    66%{box-shadow:0 0 0 3px #4aa6ff,0 0 26px -2px #4aa6ff;}
+    100%{box-shadow:0 0 0 3px #ff5b5b,0 0 26px -2px #ff5b5b;}
+  }
   .farm-slot.enhanced{box-shadow:0 0 0 2px var(--gold), 0 0 14px -3px var(--gold)!important;}
   .enh-slot-badge{position:absolute;top:2px;left:4px;font-size:11px;font-weight:800;color:#0d0a1f;
     background:var(--gold);border-radius:999px;padding:0 6px;}
@@ -647,6 +658,7 @@ function farmSlots(){ return Math.min(myLevel(), GCFG.farm_cap); }  // 최대 5�
 function tierBonusOf(tierName){ return TIER_BONUS[Math.min(tierLevelOf(tierName),TIER_BONUS.length-1)]; }
 /* 인벤토리 (개별 아이템) 헬퍼 */
 function invById(iid){ return (me.inventory||[]).find(it=>it.iid===iid); }
+function enhClass(enh){ if(enh>=10)return'enh-t4'; if(enh>=7)return'enh-t3'; if(enh>=4)return'enh-t2'; if(enh>=1)return'enh-t1'; return''; }
 function cardByName(name){ return FRIENDS.find(f=>f.name===name); }
 function enhTapGainT(tier){ const lv=tierLevelOf(tier); return GCFG.enh_tap[Math.min(lv,GCFG.enh_tap.length-1)]||0; }
 function enhPowerGainT(tier){ const lv=tierLevelOf(tier); return GCFG.enh_power[Math.min(lv,GCFG.enh_power.length-1)]||0; }
@@ -751,7 +763,7 @@ function renderFarm(){
   for(let i=0;i<slots;i++){
     const it=invById(me.farm[i]), f=it?cardByName(it.card):null;
     const cell=document.createElement('div');
-    cell.className='farm-slot'+(f?' filled':'')+(f&&it.enh>0?' enhanced':'');
+    cell.className='farm-slot'+(f?' filled':'')+(f&&it.enh>0?' enhanced '+enhClass(it.enh):'');
     if(f){
       const t=TIERS[f.tier]||{color:'#888'};
       cell.style.setProperty('--sc',t.color);
@@ -790,7 +802,7 @@ function openPick(i){
     any=true;
     const t=TIERS[f.tier]||{color:'#888',glow:'transparent'};
     const div=document.createElement('div');
-    div.className='dex-card owned'+(it.enh>0?' enhanced-card':''); div.style.cursor='pointer';
+    div.className='dex-card owned'+(it.enh>0?' enhanced-card '+enhClass(it.enh):''); div.style.cursor='pointer';
     div.style.setProperty('--tc',t.color); div.style.setProperty('--tg',t.glow);
     div.innerHTML=`${it.enh>0?`<div class="enh-badge">+${it.enh}</div>`:''}${photoTag(f,'dex-photo')}<div class="dex-name">${f.name}</div><div class="dex-tier">${f.tier}</div><div class="dex-desc">클릭 +${itemTapBonus(it)}</div>`;
     div.onclick=()=>placeCard(it.iid);
@@ -1366,7 +1378,7 @@ function openBag(){
     const f=cardByName(it.card); if(!f) return;
     const t=TIERS[f.tier]||{color:'#888',glow:'transparent'};
     const div=document.createElement('div');
-    div.className='dex-card owned'+(it.enh>0?' enhanced-card':'');
+    div.className='dex-card owned'+(it.enh>0?' enhanced-card '+enhClass(it.enh):'');
     div.style.setProperty('--tc',t.color); div.style.setProperty('--tg',t.glow);
     div.innerHTML=`${it.enh>0?`<div class="enh-badge">+${it.enh}</div>`:''}${photoTag(f,'dex-photo')}<div class="dex-name">${f.name}</div><div class="dex-tier">${f.tier}</div><div class="dex-desc">${it.enh>0?`강화 +${it.enh}`:'기본'}</div>`;
     grid.appendChild(div);
@@ -1389,7 +1401,7 @@ function openEnhance(){
     const f=cardByName(it.card); if(!f) return;
     const t=TIERS[f.tier]||{color:'#888',glow:'transparent'};
     const div=document.createElement('div');
-    div.className='dex-card owned'+(it.enh>0?' enhanced-card':''); div.style.cursor='pointer';
+    div.className='dex-card owned'+(it.enh>0?' enhanced-card '+enhClass(it.enh):''); div.style.cursor='pointer';
     div.style.setProperty('--tc',t.color); div.style.setProperty('--tg',t.glow);
     div.innerHTML=`${it.enh>0?`<div class="enh-badge">+${it.enh}</div>`:''}${photoTag(f,'dex-photo')}<div class="dex-name">${f.name}</div><div class="dex-tier">${f.tier}</div><div class="dex-desc">강화 +${it.enh}</div>`;
     div.onclick=()=>selectEnhance(it.iid);
@@ -1449,7 +1461,7 @@ function openFodderPick(targetIid){
   cand.forEach(x=>{
     const cf=cardByName(x.card); const t=TIERS[cf.tier]||{color:'#888',glow:'transparent'};
     const div=document.createElement('div');
-    div.className='dex-card owned'+(x.enh>0?' enhanced-card':''); div.style.cursor='pointer';
+    div.className='dex-card owned'+(x.enh>0?' enhanced-card '+enhClass(x.enh):''); div.style.cursor='pointer';
     div.style.setProperty('--tc',t.color); div.style.setProperty('--tg',t.glow);
     div.innerHTML=`${x.enh>0?`<div class="enh-badge">+${x.enh}</div>`:''}${photoTag(cf,'dex-photo')}<div class="dex-name">${cf.name}</div><div class="dex-tier">${cf.tier}</div><div class="dex-desc">재료로 소모</div>`;
     div.onclick=()=>doEnhance(targetIid, x.iid);

@@ -204,6 +204,7 @@ function myEnh(name){ return (me && me.enhance && me.enhance[name]) || 0; }
 function myLevel(){ return Math.floor((me.pulls||0)/PULLS_PER_LEVEL)+1; }
 function deckSlots(){ return Math.min(myLevel(), GCFG.farm_cap); }   // 최대 5칸
 function invById(iid, inv){ return (inv||me.inventory||[]).find(it=>it.iid===iid); }
+function enhClass(enh){ if(enh>=10)return'enh-t4'; if(enh>=7)return'enh-t3'; if(enh>=4)return'enh-t2'; if(enh>=1)return'enh-t1'; return''; }
 function cardByName(n){ return CARDS.find(c=>c.name===n); }
 function itemPower(it){ const f=cardByName(it.card); return f?cardPower(f.tier, it.enh||0):0; }
 function sortedInv(){
