@@ -44,7 +44,22 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:30px;}
   .slot:hover{border-color:var(--red);}
   .slot.filled{border-style:solid;border-color:var(--sc,#666);box-shadow:0 0 14px -4px var(--sc);}
-  .slot.enhanced,.pcard.enhanced{box-shadow:0 0 0 2px var(--gold),0 0 14px -3px var(--gold)!important;}
+  .slot.enhanced,.pcard.enhanced{position:relative;}
+  .enh-l1{filter:drop-shadow(0 0 3px #e8ecf5);}
+  .enh-l2{filter:drop-shadow(0 0 5px #cfd4e0);}
+  .enh-l3{filter:drop-shadow(0 0 6px #cfd4e0) drop-shadow(0 0 3px #fff);}
+  .enh-l4{filter:drop-shadow(0 0 6px #ffe07a);}
+  .enh-l5{filter:drop-shadow(0 0 8px #ffd54a) drop-shadow(0 0 3px #fff2c0);}
+  .enh-l6{filter:drop-shadow(0 0 9px #ffd54a) drop-shadow(0 0 5px #ffb03a);}
+  .enh-l7{filter:drop-shadow(0 0 9px #b06bff) drop-shadow(0 0 5px #ffd54a);}
+  .enh-l8{filter:drop-shadow(0 0 10px #b06bff) drop-shadow(0 0 6px #ff8ad6);animation:enhPulse 1.8s ease-in-out infinite;}
+  .enh-l9{filter:drop-shadow(0 0 11px #7fe9ff) drop-shadow(0 0 7px #b06bff);animation:enhPulse 1.3s ease-in-out infinite;}
+  .enh-l10{filter:drop-shadow(0 0 12px #7fe9ff) drop-shadow(0 0 8px #b06bff);}
+  @keyframes enhPulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.25);}}
+  .enh-l8::after,.enh-l9::after,.enh-l10::after{content:'';position:absolute;inset:-4px;border-radius:14px;padding:2px;z-index:1;background:conic-gradient(#ff5b5b,#ffd54a,#5bd97a,#4aa6ff,#b06bff,#ff5b5b);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;animation:enhSpin 4s linear infinite;}
+  .enh-l9::after{animation-duration:2.6s;}
+  .enh-l10::after{animation-duration:1.4s;inset:-5px;}
+  @keyframes enhSpin{to{transform:rotate(360deg);}}
   .eb{position:absolute;top:3px;left:5px;font-size:11px;font-weight:800;color:#0d0a1f;background:var(--gold);border-radius:999px;padding:0 6px;z-index:2;}
   .pcard{position:relative;}
   .slot img{width:70%;height:70%;border-radius:50%;object-fit:cover;}
@@ -204,7 +219,7 @@ function myEnh(name){ return (me && me.enhance && me.enhance[name]) || 0; }
 function myLevel(){ return Math.floor((me.pulls||0)/PULLS_PER_LEVEL)+1; }
 function deckSlots(){ return Math.min(myLevel(), GCFG.farm_cap); }   // 최대 5칸
 function invById(iid, inv){ return (inv||me.inventory||[]).find(it=>it.iid===iid); }
-function enhClass(enh){ if(enh>=10)return'enh-t4'; if(enh>=7)return'enh-t3'; if(enh>=4)return'enh-t2'; if(enh>=1)return'enh-t1'; return''; }
+function enhClass(enh){ return enh>0?('enh-l'+Math.min(enh,10)):''; }
 function cardByName(n){ return CARDS.find(c=>c.name===n); }
 function itemPower(it){ const f=cardByName(it.card); return f?cardPower(f.tier, it.enh||0):0; }
 function sortedInv(){
