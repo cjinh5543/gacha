@@ -618,14 +618,19 @@ async function saveProgress(){
   });
   if(error) console.error('저장 실패', error);
 }
-// 인벤토리·밭 저장 (개별 아이템)
+// 인벤토리·밭 저장 (개별 아이템) - 실패 시 1회 재시도 + 알림
 async function saveInv(){
-  if(!currentUser) return;
-  const {error}=await sb.rpc('save_inventory',{
-    p_id:currentUser, p_token:token, p_inventory:me.inventory||[],
-    p_next_iid:me.next_iid||1, p_farm:me.farm||[]
-  });
-  if(error) console.error('인벤토리 저장 실패', error);
+  if(!currentUser) return true;
+  for(let tryN=0; tryN<2; tryN++){
+    const {error}=await sb.rpc('save_inventory',{
+      p_id:currentUser, p_token:token, p_inventory:me.inventory||[],
+      p_next_iid:me.next_iid||1, p_farm:me.farm||[]
+    });
+    if(!error) return true;
+    console.error('인벤토리 저장 실패', error);
+  }
+  toast('⚠️ 저장 실패! 인터넷 확인 후 다시 시도하세요');
+  return false;
 }
 /* ================= 레벨 & 밭(농사) ================= */
 let GCFG={farm_cap:5,pulls_per_level:100,tap_per_food:50,
@@ -882,7 +887,7 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<'
 /* ================= 뽑기 ================= */
 function photoTag(f,cls){
   return f.photo.startsWith('http')
-    ? `<img class="${cls}" src="${f.photo}" alt="${f.name}">`
+    ? `<img class="${cls}" src="${f.photo}" alt="${f.name}" loading="lazy" decoding="async">`
     : `<div class="${cls}">${f.photo}</div>`;
 }
 function pickTier(forceHigh){
@@ -1405,6 +1410,7 @@ function selectEnhance(iid, resultHtml){
   const canGo = !maxed && fodder>=1;
   const panel=document.getElementById('enhPanel');
   document.getElementById('enhPick').style.display='none';
+  document.getElementById('enhGrid').innerHTML='';   // 큰 목록 DOM 비워 렉 방지
   panel.style.display='block';
   panel.style.setProperty('--tc',t.color); panel.style.setProperty('--tg',t.glow);
   panel.className='enh-detail';
